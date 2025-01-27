@@ -1,57 +1,47 @@
 use mime::Mime;
 use std::{error::Error, str::FromStr};
-use url::Url;
 use winnow::{
-    combinator::{delimited, repeat},
-    token::literal,
+    ascii::alpha1,
+    combinator::{delimited, repeat, terminated},
     PResult, Parser,
 };
 
 use crate::common::parse_attribute_kvs;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct Header<'s, T> {
-    tags: Vec<HeaderTag<'s, T>>,
+pub(super) struct Header<'s> {
+    tags: Vec<HeaderTag<'s>>,
 }
-
-#[derive(Debug, PartialEq, Eq)]
-struct HeaderTag<'s, T> {
-    tag_type: T,
-    attributes: Vec<Attribute<'s>>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct Xml;
-
-#[derive(Debug, PartialEq, Eq)]
-struct XmlStyleSheet;
-
-#[derive(Debug, PartialEq, Eq)]
-struct Bill;
 
 impl<'s> Header<'s> {
-    pub(super) fn parse(input: &mut &str) -> PResult<Self> {
-        let (doc_format, doc_attributes) = header(input)?;
-
-        let format = Format::from_str(doc_format).unwrap();
-
-        Ok(Self { format, attributes })
+    pub(super) fn parse(input: &mut &'s str) -> PResult<Self> {
+        let tags = repeat(1.., delimited("<?", header_tag, "?>")).parse_next(input)?;
+        Ok(Header { tags })
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum Format {
-    Xml,
+struct HeaderTag<'s> {
+    tag_type: HeaderTagType,
+    attributes: Vec<Attribute<'s>>,
 }
 
-impl FromStr for Format {
+#[derive(Debug, PartialEq, Eq)]
+enum HeaderTagType {
+    Xml,
+    XmlStyleSheet,
+}
+
+impl FromStr for HeaderTagType {
     type Err = Box<dyn Error>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "?xml" => Ok(Format::Xml),
-            _ => panic!("Unrecognized xml version"),
-        }
+        let item = match s {
+            "xml" => HeaderTagType::Xml,
+            "xml-stylesheet" => HeaderTagType::XmlStyleSheet,
+            _ => panic!("Unknown HeaderTagType: {:#?}", s),
+        };
+        Ok(item)
     }
 }
 
@@ -62,14 +52,14 @@ pub(super) enum Attribute<'s> {
     Name(&'s str),
     StyleType(Mime),
     Href(&'s str),
-    Xmlns(Url),
-    XmlnsDc(Url),
-    XmlnsHtml(Url),
-    XmlnsiUslm(Url),
-    XmlnsiXsi(Url),
-    XsiSchemaLocation(Url),
-    XmlLang(&'s str),
-    Id(&'s str),
+    // Xmlns(Url),
+    // XmlnsDc(Url),
+    // XmlnsHtml(Url),
+    // XmlnsiUslm(Url),
+    // XmlnsiXsi(Url),
+    // XsiSchemaLocation(Url),
+    // XmlLang(&'s str),
+    // Id(&'s str),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -104,16 +94,13 @@ impl FromStr for Encoding {
     }
 }
 
-fn header<'s>(input: &mut &'s str) -> PResult<Header<'s>> {
-    let tags = repeat(0.., delimited("<?", header_tag, "?>")).parse_next(input)?;
-    Ok(Header { tags })
-}
-
-fn header_tag<'s, T>(input: &mut &'s str) -> PResult<HeaderTag<'s, T>> {
-    literal("xml ").parse_next(input)?;
-    let attributes = parse_attribute_kvs(input)?;
-
-    Ok((xml, attributes))
+fn header_tag<'s>(input: &mut &'s str) -> PResult<HeaderTag<'s>> {
+    let tag_type = HeaderTagType::from_str(alpha1.parse_next(input)?).unwrap();
+    let attributes = parse_attribute_kvs(input)?.into_attributes();
+    Ok(HeaderTag {
+        tag_type,
+        attributes,
+    })
 }
 
 trait VecExt<'s> {
@@ -129,14 +116,14 @@ impl<'s> VecExt<'s> for Vec<(&'s str, &'s str)> {
                 "name" => Attribute::Name(v),
                 "type" => Attribute::StyleType(Mime::from_str(v).unwrap()),
                 "href" => Attribute::Href(v),
-                "xmlns" => Attribute::Xmlns(Url::from_str(v).unwrap()),
-                "xmlns:dc" => Attribute::XmlnsDc(Url::from_str(v).unwrap()),
-                "xmlns:html" => Attribute::XmlnsHtml(Url::from_str(v).unwrap()),
-                "xmlns:uslm" => Attribute::XmlnsiUslm(Url::from_str(v).unwrap()),
-                "xmlns:xsi" => Attribute::XmlnsiXsi(Url::from_str(v).unwrap()),
-                "xsi:schemaLocation" => Attribute::XsiSchemaLocation(Url::from_str(v).unwrap()),
-                "xml:lang" => Attribute::XmlLang(v),
-                "id" => Attribute::Id(v),
+                // "xmlns" => Attribute::Xmlns(Url::from_str(v).unwrap()),
+                // "xmlns:dc" => Attribute::XmlnsDc(Url::from_str(v).unwrap()),
+                // "xmlns:html" => Attribute::XmlnsHtml(Url::from_str(v).unwrap()),
+                // "xmlns:uslm" => Attribute::XmlnsiUslm(Url::from_str(v).unwrap()),
+                // "xmlns:xsi" => Attribute::XmlnsiXsi(Url::from_str(v).unwrap()),
+                // "xsi:schemaLocation" => Attribute::XsiSchemaLocation(Url::from_str(v).unwrap()),
+                // "xml:lang" => Attribute::XmlLang(v),
+                // "id" => Attribute::Id(v),
                 _ => panic!("Unrecognized doc attribute variant: {:#?}", v),
             })
             .collect()
@@ -145,53 +132,43 @@ impl<'s> VecExt<'s> for Vec<(&'s str, &'s str)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::Uslm;
-
     use super::*;
 
+    use crate::Uslm;
+
     #[test]
-    fn test_xml_literal() {
-        let mut input = "?xml";
+    fn test_xml_tag() {
+        let input = r#"xml"#;
 
-        let output = parse_xml(&mut input).unwrap();
+        let output = HeaderTagType::from_str(input).unwrap();
 
-        assert_eq!(input, "");
-        assert_eq!(output, "?xml");
+        assert_eq!(output, HeaderTagType::Xml);
     }
 
     #[test]
-    fn test_xml_literal_extended() {
-        let mut input = "?xml_test_me";
+    fn test_xml_stylesheet_tag() {
+        let input = r#"xml-stylesheet"#;
 
-        let output = parse_xml(&mut input).unwrap();
+        let output = HeaderTagType::from_str(input).unwrap();
 
-        assert_eq!(input, "_test_me");
-        assert_eq!(output, "?xml");
-    }
-
-    #[test]
-    fn test_parse_header_tags() {
-        let mut input = r#"?xml version="1.0" encoding="UTF-8""#;
-
-        let output = header_tag(&mut input).unwrap();
-
-        assert_eq!(input, "");
-        assert_eq!(
-            output,
-            ("?xml", vec![("version", "1.0"), ("encoding", r#"UTF-8"#)])
-        );
+        assert_eq!(output, HeaderTagType::XmlStyleSheet);
     }
 
     #[test]
     fn test_parse_header() {
-        let mut input = r#"<?xml version="1.0" encoding="UTF-8"?>"#;
+        let mut input = r#"<?xml?>"#;
 
-        let output = header(&mut input).unwrap();
+        let output = Header::parse(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(
             output,
-            ("?xml", vec![("version", "1.0"), ("encoding", r#"UTF-8"#)])
+            Header {
+                tags: vec![HeaderTag {
+                    tag_type: HeaderTagType::Xml,
+                    attributes: vec![],
+                }]
+            }
         );
     }
 
@@ -202,15 +179,18 @@ mod tests {
         let output = Header::parse(&mut input).unwrap();
 
         assert_eq!(input, "");
+        assert_eq!(input, "");
         assert_eq!(
+            output,
             Header {
-                format: Format::Xml,
-                attributes: vec![
-                    Attribute::Version(Version::One),
-                    Attribute::Encoding(Encoding::Utf8)
-                ]
-            },
-            output
+                tags: vec![HeaderTag {
+                    tag_type: HeaderTagType::Xml,
+                    attributes: vec![
+                        Attribute::Version(Version::One),
+                        Attribute::Encoding(Encoding::Utf8)
+                    ],
+                }]
+            }
         );
     }
 
@@ -254,16 +234,18 @@ mod tests {
         let output = Uslm::parse(&mut input).unwrap();
 
         assert_eq!(
+            output,
             Uslm {
                 header: Header {
-                    format: Format::Xml,
-                    attributes: vec![
-                        Attribute::Version(Version::One),
-                        Attribute::Encoding(Encoding::Utf8)
-                    ]
-                },
-            },
-            output
+                    tags: vec![HeaderTag {
+                        tag_type: HeaderTagType::Xml,
+                        attributes: vec![
+                            Attribute::Version(Version::One),
+                            Attribute::Encoding(Encoding::Utf8)
+                        ],
+                    }]
+                }
+            }
         );
     }
 }

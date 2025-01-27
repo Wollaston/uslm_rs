@@ -143,14 +143,14 @@ trait VecExt<'s> {
     fn into_attributes(self) -> Vec<Attribute<'s>>;
 }
 
-impl<'s> VecExt<'s> for Vec<(&str, &str)> {
+impl<'s> VecExt<'s> for Vec<(&'s str, &'s str)> {
     fn into_attributes(self) -> Vec<Attribute<'s>> {
         self.into_iter()
             .map(|(k, v)| match k {
                 "name" => Attribute::Name(v),
                 _ => panic!("Unrecognized attribute"),
             })
-            .collect()
+            .collect::<Vec<Attribute<'s>>>()
     }
 }
 
@@ -168,7 +168,7 @@ mod tests {
         assert_eq!(
             output,
             Tag {
-                tag_type: TagType::Property,
+                tag_type: TagType::Standard(StandardTag::Property),
                 attributes: vec![Attribute::Name("&quot;docTitle&quot;")],
                 content: Some("CONTENT")
             }
@@ -185,7 +185,7 @@ mod tests {
         assert_eq!(
             output,
             Tag {
-                tag_type: TagType::Meta,
+                tag_type: TagType::Meta(MetaTag::Meta),
                 attributes: vec![],
                 content: None
             }
@@ -209,7 +209,7 @@ mod tests {
         let output = parse_opening_tag(&mut input).unwrap();
 
         assert_eq!(input, "");
-        assert_eq!(output, TagType::Property);
+        assert_eq!(output, TagType::Standard(StandardTag::Property));
     }
 
     #[test]
@@ -219,7 +219,7 @@ mod tests {
         let output = parse_closing_tag(&mut input).unwrap();
 
         assert_eq!(input, "");
-        assert_eq!(output, TagType::Property);
+        assert_eq!(output, TagType::Standard(StandardTag::Property));
     }
 
     #[test]

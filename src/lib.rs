@@ -11,7 +11,7 @@ pub struct Uslm<'s> {
 }
 
 impl<'s> Uslm<'s> {
-    pub fn parse(input: &mut &str) -> PResult<Self> {
+    pub fn parse(input: &mut &'s str) -> PResult<Self> {
         Ok(Uslm {
             header: Header::parse(input)?,
         })
