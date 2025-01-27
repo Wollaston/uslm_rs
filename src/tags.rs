@@ -15,15 +15,31 @@ use crate::{
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct Tag<'s> {
     tag_type: TagType,
-    attributes: Vec<Attribute>,
+    attributes: Vec<Attribute<'s>>,
     content: Option<&'s str>,
     // children: Vec<Tag<'s>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum TagType {
-    Property,
+    Doc(DocTag),
+    Meta(MetaTag),
+    Standard(StandardTag),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum DocTag {
+    LawDoc,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum MetaTag {
     Meta,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum StandardTag {
+    Property,
     Img,
 }
 
@@ -31,11 +47,46 @@ impl FromStr for TagType {
     type Err = winnow::error::ErrMode<winnow::error::ContextError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "property" => Ok(TagType::Property),
-            "meta" => Ok(TagType::Meta),
-            "img" => Ok(TagType::Img),
+        let tag = match s {
+            "LawDoc" => TagType::Doc(DocTag::from_str(s)?),
+            "meta" => TagType::Meta(MetaTag::from_str(s)?),
+            "standard" | "img" => TagType::Standard(StandardTag::from_str(s)?),
             _ => panic!("Unknown TagType"),
+        };
+        Ok(tag)
+    }
+}
+
+impl FromStr for DocTag {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "lawDoc" => Ok(DocTag::LawDoc),
+            _ => panic!("Unkown DocTag: {:#?}", s),
+        }
+    }
+}
+
+impl FromStr for MetaTag {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "meta" => Ok(MetaTag::Meta),
+            _ => panic!("Unkown MetaTag: {:#?}", s),
+        }
+    }
+}
+
+impl FromStr for StandardTag {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "property" => Ok(StandardTag::Property),
+            "img" => Ok(StandardTag::Img),
+            _ => panic!("Unkown StandardTag: {:#?}", s),
         }
     }
 }
@@ -62,7 +113,7 @@ fn parse_tag<'s>(input: &mut &'s str) -> PResult<Tag<'s>> {
 }
 
 /// Parses the '>' from a tag and returns the empty array
-/// required for the Tag's Vec<Attribute>.
+/// required for the Tag's Vec<Attribute<'s>>.
 fn parse_close<'s>(input: &mut &'s str) -> PResult<Vec<(&'s str, &'s str)>> {
     ">".value(Vec::new()).parse_next(input)
 }
@@ -88,15 +139,15 @@ fn parse_closing_tag<'s>(input: &mut &'s str) -> PResult<TagType> {
     TagType::from_str(output)
 }
 
-trait VecExt {
-    fn into_attributes(self) -> Vec<Attribute>;
+trait VecExt<'s> {
+    fn into_attributes(self) -> Vec<Attribute<'s>>;
 }
 
-impl VecExt for Vec<(&str, &str)> {
-    fn into_attributes(self) -> Vec<Attribute> {
+impl<'s> VecExt<'s> for Vec<(&str, &str)> {
+    fn into_attributes(self) -> Vec<Attribute<'s>> {
         self.into_iter()
             .map(|(k, v)| match k {
-                "name" => Attribute::Name(String::from(v)),
+                "name" => Attribute::Name(v),
                 _ => panic!("Unrecognized attribute"),
             })
             .collect()
@@ -118,7 +169,7 @@ mod tests {
             output,
             Tag {
                 tag_type: TagType::Property,
-                attributes: vec![Attribute::Name(String::from("&quot;docTitle&quot;"))],
+                attributes: vec![Attribute::Name("&quot;docTitle&quot;")],
                 content: Some("CONTENT")
             }
         )

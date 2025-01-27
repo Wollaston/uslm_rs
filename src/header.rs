@@ -1,31 +1,37 @@
-use std::{error::Error, str::FromStr};
-
 use mime::Mime;
+use std::{error::Error, str::FromStr};
 use url::Url;
 use winnow::{
-    combinator::delimited,
-    stream::AsChar,
-    token::{literal, take_till},
+    combinator::{delimited, repeat},
+    token::literal,
     PResult, Parser,
 };
 
 use crate::common::parse_attribute_kvs;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct Header<'s> {
-    tags: Vec<HeaderTag<'s>>,
+pub(super) struct Header<'s, T> {
+    tags: Vec<HeaderTag<'s, T>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum HeaderTag<'s> {
-    Xml { attributes: Vec<Attribute<'s>> },
-    XmlStyleSheet { attributes: Vec<Attribute<'s>> },
-    Bill { attributes: Vec<Attribute<'s>> },
+struct HeaderTag<'s, T> {
+    tag_type: T,
+    attributes: Vec<Attribute<'s>>,
 }
+
+#[derive(Debug, PartialEq, Eq)]
+struct Xml;
+
+#[derive(Debug, PartialEq, Eq)]
+struct XmlStyleSheet;
+
+#[derive(Debug, PartialEq, Eq)]
+struct Bill;
 
 impl<'s> Header<'s> {
     pub(super) fn parse(input: &mut &str) -> PResult<Self> {
-        let (doc_format, doc_attributes) = parse_header(input)?;
+        let (doc_format, doc_attributes) = header(input)?;
 
         let format = Format::from_str(doc_format).unwrap();
 
@@ -98,14 +104,12 @@ impl FromStr for Encoding {
     }
 }
 
-fn parse_header<'s>(input: &mut &'s str) -> PResult<(&'s str, Vec<(&'s str, &'s str)>)> {
-    delimited("<?", parse_header_tag, "?>").parse_next(input)
+fn header<'s>(input: &mut &'s str) -> PResult<Header<'s>> {
+    let tags = repeat(0.., delimited("<?", header_tag, "?>")).parse_next(input)?;
+    Ok(Header { tags })
 }
 
-fn parse_header_tag<'s, T>(input: &mut &'s str) -> PResult<HeaderTag>
-where
-    T: HeaderTag,
-{
+fn header_tag<'s, T>(input: &mut &'s str) -> PResult<HeaderTag<'s, T>> {
     literal("xml ").parse_next(input)?;
     let attributes = parse_attribute_kvs(input)?;
 
@@ -169,7 +173,7 @@ mod tests {
     fn test_parse_header_tags() {
         let mut input = r#"?xml version="1.0" encoding="UTF-8""#;
 
-        let output = parse_header_tag(&mut input).unwrap();
+        let output = header_tag(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(
@@ -182,7 +186,7 @@ mod tests {
     fn test_parse_header() {
         let mut input = r#"<?xml version="1.0" encoding="UTF-8"?>"#;
 
-        let output = parse_header(&mut input).unwrap();
+        let output = header(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(
