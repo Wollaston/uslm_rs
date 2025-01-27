@@ -1,5 +1,7 @@
 use std::{error::Error, str::FromStr};
 
+use mime::Mime;
+use url::Url;
 use winnow::{
     combinator::delimited,
     stream::AsChar,
@@ -10,25 +12,22 @@ use winnow::{
 use crate::common::parse_attribute_kvs;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct Header {
-    format: Format,
-    attributes: Vec<Attribute>,
+pub(super) struct Header<'s> {
+    tags: Vec<HeaderTag<'s>>,
 }
 
-impl Header {
+#[derive(Debug, PartialEq, Eq)]
+enum HeaderTag<'s> {
+    Xml { attributes: Vec<Attribute<'s>> },
+    XmlStyleSheet { attributes: Vec<Attribute<'s>> },
+    Bill { attributes: Vec<Attribute<'s>> },
+}
+
+impl<'s> Header<'s> {
     pub(super) fn parse(input: &mut &str) -> PResult<Self> {
         let (doc_format, doc_attributes) = parse_header(input)?;
 
         let format = Format::from_str(doc_format).unwrap();
-
-        let attributes = doc_attributes
-            .into_iter()
-            .map(|(k, v)| match k {
-                "version" => Attribute::Version(Version::from_str(v).unwrap()),
-                "encoding" => Attribute::Encoding(Encoding::from_str(v).unwrap()),
-                _ => panic!("Unrecognized doc attribute variant"),
-            })
-            .collect();
 
         Ok(Self { format, attributes })
     }
@@ -51,10 +50,20 @@ impl FromStr for Format {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum Attribute {
+pub(super) enum Attribute<'s> {
     Version(Version),
     Encoding(Encoding),
-    Name(String),
+    Name(&'s str),
+    StyleType(Mime),
+    Href(&'s str),
+    Xmlns(Url),
+    XmlnsDc(Url),
+    XmlnsHtml(Url),
+    XmlnsiUslm(Url),
+    XmlnsiXsi(Url),
+    XsiSchemaLocation(Url),
+    XmlLang(&'s str),
+    Id(&'s str),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -89,20 +98,45 @@ impl FromStr for Encoding {
     }
 }
 
-fn parse_xml<'s>(input: &mut &'s str) -> PResult<&'s str> {
-    literal("?xml").parse_next(input)
-}
-
-fn parse_header_tags<'s>(input: &mut &'s str) -> PResult<(&'s str, Vec<(&'s str, &'s str)>)> {
-    let xml = parse_xml(input)?;
-    take_till(0.., AsChar::is_alphanum).parse_next(input)?;
-    let kvs = parse_attribute_kvs(input)?;
-
-    Ok((xml, kvs))
-}
-
 fn parse_header<'s>(input: &mut &'s str) -> PResult<(&'s str, Vec<(&'s str, &'s str)>)> {
-    delimited('<', parse_header_tags, '>').parse_next(input)
+    delimited("<?", parse_header_tag, "?>").parse_next(input)
+}
+
+fn parse_header_tag<'s, T>(input: &mut &'s str) -> PResult<HeaderTag>
+where
+    T: HeaderTag,
+{
+    literal("xml ").parse_next(input)?;
+    let attributes = parse_attribute_kvs(input)?;
+
+    Ok((xml, attributes))
+}
+
+trait VecExt<'s> {
+    fn into_attributes(self) -> Vec<Attribute<'s>>;
+}
+
+impl<'s> VecExt<'s> for Vec<(&'s str, &'s str)> {
+    fn into_attributes(self) -> Vec<Attribute<'s>> {
+        self.into_iter()
+            .map(|(k, v)| match k {
+                "version" => Attribute::Version(Version::from_str(v).unwrap()),
+                "encoding" => Attribute::Encoding(Encoding::from_str(v).unwrap()),
+                "name" => Attribute::Name(v),
+                "type" => Attribute::StyleType(Mime::from_str(v).unwrap()),
+                "href" => Attribute::Href(v),
+                "xmlns" => Attribute::Xmlns(Url::from_str(v).unwrap()),
+                "xmlns:dc" => Attribute::XmlnsDc(Url::from_str(v).unwrap()),
+                "xmlns:html" => Attribute::XmlnsHtml(Url::from_str(v).unwrap()),
+                "xmlns:uslm" => Attribute::XmlnsiUslm(Url::from_str(v).unwrap()),
+                "xmlns:xsi" => Attribute::XmlnsiXsi(Url::from_str(v).unwrap()),
+                "xsi:schemaLocation" => Attribute::XsiSchemaLocation(Url::from_str(v).unwrap()),
+                "xml:lang" => Attribute::XmlLang(v),
+                "id" => Attribute::Id(v),
+                _ => panic!("Unrecognized doc attribute variant: {:#?}", v),
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -135,7 +169,7 @@ mod tests {
     fn test_parse_header_tags() {
         let mut input = r#"?xml version="1.0" encoding="UTF-8""#;
 
-        let output = parse_header_tags(&mut input).unwrap();
+        let output = parse_header_tag(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(
@@ -146,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_parse_header() {
-        let mut input = r#"<?xml version="1.0" encoding="UTF-8">"#;
+        let mut input = r#"<?xml version="1.0" encoding="UTF-8"?>"#;
 
         let output = parse_header(&mut input).unwrap();
 
@@ -159,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_parse_header_struct() {
-        let mut input = r#"<?xml version="1.0" encoding="UTF-8">"#;
+        let mut input = r#"<?xml version="1.0" encoding="UTF-8"?>"#;
 
         let output = Header::parse(&mut input).unwrap();
 
@@ -178,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_parse_uslm() {
-        let mut input = r#"<?xml version="1.0" encoding="UTF-8">
+        let mut input = r#"<?xml version="1.0" encoding="UTF-8?">
 
 <lawDoc       
      xmlns=http://xml.house.gov/schemas/uslm/1.0

@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use winnow::{
-    combinator::{alt, delimited, preceded},
+    combinator::{delimited, dispatch, fail, peek, preceded},
     stream::AsChar,
-    token::take_while,
+    token::{any, take_while},
     PResult, Parser,
 };
 
@@ -17,12 +17,14 @@ pub(super) struct Tag<'s> {
     tag_type: TagType,
     attributes: Vec<Attribute>,
     content: Option<&'s str>,
+    // children: Vec<Tag<'s>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum TagType {
     Property,
     Meta,
+    Img,
 }
 
 impl FromStr for TagType {
@@ -32,6 +34,7 @@ impl FromStr for TagType {
         match s {
             "property" => Ok(TagType::Property),
             "meta" => Ok(TagType::Meta),
+            "img" => Ok(TagType::Img),
             _ => panic!("Unknown TagType"),
         }
     }
@@ -39,9 +42,15 @@ impl FromStr for TagType {
 
 fn parse_tag<'s>(input: &mut &'s str) -> PResult<Tag<'s>> {
     let tag = parse_opening_tag(input)?;
-    let attributes = alt((parse_close, parse_open))
-        .parse_next(input)?
-        .into_attributes();
+    let attributes = dispatch!(peek(any);
+        '>' => parse_close,
+        ' ' => parse_open,
+        '/' => parse_self_closing,
+    _ => fail
+    )
+    .parse_next(input)?
+    .into_attributes();
+
     let content = parse_content(input).ok();
     parse_closing_tag(input)?;
 
@@ -62,6 +71,11 @@ fn parse_open<'s>(input: &mut &'s str) -> PResult<Vec<(&'s str, &'s str)>> {
     let output = preceded(" ", parse_attribute_kvs).parse_next(input)?;
     ">".parse_next(input)?;
     Ok(output)
+}
+
+fn parse_self_closing<'s>(input: &mut &'s str) -> PResult<Vec<(&'s str, &'s str)>> {
+    "/".parse_next(input)?;
+    ">".value(Vec::new()).parse_next(input)
 }
 
 fn parse_opening_tag<'s>(input: &mut &'s str) -> PResult<TagType> {
@@ -125,6 +139,16 @@ mod tests {
                 content: None
             }
         )
+    }
+
+    #[test]
+    fn test_parse_self_closing() {
+        let mut input = "/>";
+
+        let output = parse_self_closing(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(output, vec![],)
     }
 
     #[test]
