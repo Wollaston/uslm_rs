@@ -16,7 +16,7 @@ use crate::{
 pub(super) struct Tag<'s> {
     tag_type: TagType,
     attributes: Vec<Attribute>,
-    content: &'s str,
+    content: Option<&'s str>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -42,7 +42,7 @@ fn parse_tag<'s>(input: &mut &'s str) -> PResult<Tag<'s>> {
     let attributes = alt((parse_close, parse_open))
         .parse_next(input)?
         .into_attributes();
-    let content = parse_content(input)?;
+    let content = parse_content(input).ok();
     parse_closing_tag(input)?;
 
     Ok(Tag {
@@ -52,6 +52,8 @@ fn parse_tag<'s>(input: &mut &'s str) -> PResult<Tag<'s>> {
     })
 }
 
+/// Parses the '>' from a tag and returns the empty array
+/// required for the Tag's Vec<Attribute>.
 fn parse_close<'s>(input: &mut &'s str) -> PResult<Vec<(&'s str, &'s str)>> {
     ">".value(Vec::new()).parse_next(input)
 }
@@ -103,7 +105,7 @@ mod tests {
             Tag {
                 tag_type: TagType::Property,
                 attributes: vec![Attribute::Name(String::from("&quot;docTitle&quot;"))],
-                content: "CONTENT"
+                content: Some("CONTENT")
             }
         )
     }
@@ -120,7 +122,7 @@ mod tests {
             Tag {
                 tag_type: TagType::Meta,
                 attributes: vec![],
-                content: ""
+                content: None
             }
         )
     }

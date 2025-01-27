@@ -1,13 +1,15 @@
 use winnow::{
     ascii::alpha1,
-    combinator::{alt, delimited, separated, separated_pair},
-    token::take_while,
-    PResult, Parser,
+    combinator::{alt, delimited, peek, separated, separated_pair},
+    error::InputError,
+    stream::Stream,
+    token::{take, take_while},
+    IResult, PResult, Parser,
 };
 
 pub(super) fn parse_content<'s>(input: &mut &'s str) -> PResult<&'s str> {
     take_while(
-        0..,
+        1..,
         (
             'a'..='z',
             'A'..='Z',
