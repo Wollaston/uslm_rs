@@ -1,12 +1,13 @@
-use mime::Mime;
 use std::{error::Error, str::FromStr};
 use winnow::{
-    ascii::alpha1,
-    combinator::{delimited, repeat, terminated},
+    combinator::{delimited, repeat},
     PResult, Parser,
 };
 
-use crate::common::parse_attribute_kvs;
+use crate::{
+    attributes::Attribute,
+    common::{inner, parse_attribute_kvs},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct Header<'s> {
@@ -15,7 +16,7 @@ pub(super) struct Header<'s> {
 
 impl<'s> Header<'s> {
     pub(super) fn parse(input: &mut &'s str) -> PResult<Self> {
-        let tags = repeat(1.., delimited("<?", header_tag, "?>")).parse_next(input)?;
+        let tags = repeat(0.., delimited("<?", header_tag, "?>")).parse_next(input)?;
         Ok(Header { tags })
     }
 }
@@ -45,93 +46,21 @@ impl FromStr for HeaderTagType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub(super) enum Attribute<'s> {
-    Version(Version),
-    Encoding(Encoding),
-    Name(&'s str),
-    StyleType(Mime),
-    Href(&'s str),
-    // Xmlns(Url),
-    // XmlnsDc(Url),
-    // XmlnsHtml(Url),
-    // XmlnsiUslm(Url),
-    // XmlnsiXsi(Url),
-    // XsiSchemaLocation(Url),
-    // XmlLang(&'s str),
-    // Id(&'s str),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum Version {
-    One,
-}
-
-impl FromStr for Version {
-    type Err = Box<dyn Error>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "1.0" => Ok(Version::One),
-            _ => panic!("Unrecognized xml version"),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum Encoding {
-    Utf8,
-}
-
-impl FromStr for Encoding {
-    type Err = Box<dyn Error>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "UTF-8" => Ok(Encoding::Utf8),
-            _ => panic!("Unrecognized Encoding"),
-        }
-    }
-}
-
 fn header_tag<'s>(input: &mut &'s str) -> PResult<HeaderTag<'s>> {
-    let tag_type = HeaderTagType::from_str(alpha1.parse_next(input)?).unwrap();
-    let attributes = parse_attribute_kvs(input)?.into_attributes();
+    let tag_type = HeaderTagType::from_str(inner.parse_next(input)?).unwrap();
+    let attributes = parse_attribute_kvs(input);
+    dbg!(&attributes);
     Ok(HeaderTag {
         tag_type,
-        attributes,
+        attributes: attributes?.into_attributes(),
     })
-}
-
-trait VecExt<'s> {
-    fn into_attributes(self) -> Vec<Attribute<'s>>;
-}
-
-impl<'s> VecExt<'s> for Vec<(&'s str, &'s str)> {
-    fn into_attributes(self) -> Vec<Attribute<'s>> {
-        self.into_iter()
-            .map(|(k, v)| match k {
-                "version" => Attribute::Version(Version::from_str(v).unwrap()),
-                "encoding" => Attribute::Encoding(Encoding::from_str(v).unwrap()),
-                "name" => Attribute::Name(v),
-                "type" => Attribute::StyleType(Mime::from_str(v).unwrap()),
-                "href" => Attribute::Href(v),
-                // "xmlns" => Attribute::Xmlns(Url::from_str(v).unwrap()),
-                // "xmlns:dc" => Attribute::XmlnsDc(Url::from_str(v).unwrap()),
-                // "xmlns:html" => Attribute::XmlnsHtml(Url::from_str(v).unwrap()),
-                // "xmlns:uslm" => Attribute::XmlnsiUslm(Url::from_str(v).unwrap()),
-                // "xmlns:xsi" => Attribute::XmlnsiXsi(Url::from_str(v).unwrap()),
-                // "xsi:schemaLocation" => Attribute::XsiSchemaLocation(Url::from_str(v).unwrap()),
-                // "xml:lang" => Attribute::XmlLang(v),
-                // "id" => Attribute::Id(v),
-                _ => panic!("Unrecognized doc attribute variant: {:#?}", v),
-            })
-            .collect()
-    }
 }
 
 #[cfg(test)]
 mod tests {
+    use mime::TEXT_CSS;
+    use winnow::{ascii::alpha1, error::ContextError};
+
     use super::*;
 
     use crate::Uslm;
@@ -147,10 +76,11 @@ mod tests {
 
     #[test]
     fn test_xml_stylesheet_tag() {
-        let input = r#"xml-stylesheet"#;
+        let mut input = r#"xml-stylesheet"#;
 
-        let output = HeaderTagType::from_str(input).unwrap();
+        let output = HeaderTagType::from_str(inner.parse_next(&mut input).unwrap()).unwrap();
 
+        assert_eq!(input, "");
         assert_eq!(output, HeaderTagType::XmlStyleSheet);
     }
 
@@ -173,12 +103,11 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_header_struct() {
+    fn test_parse_header_struct_xml() {
         let mut input = r#"<?xml version="1.0" encoding="UTF-8"?>"#;
 
         let output = Header::parse(&mut input).unwrap();
 
-        assert_eq!(input, "");
         assert_eq!(input, "");
         assert_eq!(
             output,
@@ -195,41 +124,56 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_header_struct_xml_stylesheet() {
+        let mut input = r#"<?xml-stylesheet type="text/css" href="uslm.css"?>"#;
+
+        let output = Header::parse(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(
+            output,
+            Header {
+                tags: vec![HeaderTag {
+                    tag_type: HeaderTagType::XmlStyleSheet,
+                    attributes: vec![Attribute::StyleType(TEXT_CSS), Attribute::Href("uslm.css"),]
+                }]
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_multi_header() {
+        let mut input = r#"<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type="text/css" href="uslm.css"?>"#;
+
+        let output = Header::parse(&mut input).unwrap();
+        dbg!(&input, &output);
+
+        assert_eq!(
+            output,
+            Header {
+                tags: vec![
+                    HeaderTag {
+                        tag_type: HeaderTagType::Xml,
+                        attributes: vec![
+                            Attribute::Version(Version::One),
+                            Attribute::Encoding(Encoding::Utf8)
+                        ],
+                    },
+                    HeaderTag {
+                        tag_type: HeaderTagType::XmlStyleSheet,
+                        attributes: vec![
+                            Attribute::StyleType(TEXT_CSS),
+                            Attribute::Href("uslm.css"),
+                        ]
+                    }
+                ]
+            }
+        );
+    }
+
+    #[test]
     fn test_parse_uslm() {
-        let mut input = r#"<?xml version="1.0" encoding="UTF-8?">
-
-<lawDoc       
-     xmlns=http://xml.house.gov/schemas/uslm/1.0
-	xsi:schemaLocation"http://xml.house.gov/schemas/uslm/1.0
-       ./USLM-1.0.xsd"
-	 xml:base="http://resolver.mydomain.com"
-     identifier="/us/usc/t5">
-   <meta>
-      <property name=&quot;docTitle&quot;>…</property>
-      …
-   </meta>
-
-   <main>
-      <layout>
-         <header>Table of Contents</header>
-         <toc>
-            <tocItem title="Chapter 1">
-               <column>1.</column>
-               <column leaders=".">General Provisions</column>
-               <column>101</column>
-            </tocItem>
-         </toc>
-      </layout>
-
-      <level role=&quot;Chapter&quot;>
-         <num value=&quot;1&quot;>CHAPTER 1.</num>
-         <heading>General Provisions</heading>
-         <content>
-            ...
-         </content>
-      </level>
-   </main>
-</lawDoc>"#;
+        let mut input = r#"<?xml version="1.0" encoding="UTF-8"?>"#;
 
         let output = Uslm::parse(&mut input).unwrap();
 
@@ -247,5 +191,49 @@ mod tests {
                 }
             }
         );
+    }
+
+    #[test]
+    fn test_parse_multi_header_uslm() {
+        let mut input = r#"<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type="text/css" href="uslm.css"?>"#;
+
+        let output = Uslm::parse(&mut input).unwrap();
+        dbg!(&input, &output);
+
+        assert_eq!(
+            output,
+            Uslm {
+                header: Header {
+                    tags: vec![
+                        HeaderTag {
+                            tag_type: HeaderTagType::Xml,
+                            attributes: vec![
+                                Attribute::Version(Version::One),
+                                Attribute::Encoding(Encoding::Utf8)
+                            ],
+                        },
+                        HeaderTag {
+                            tag_type: HeaderTagType::XmlStyleSheet,
+                            attributes: vec![
+                                Attribute::StyleType(TEXT_CSS),
+                                Attribute::Href("uslm.css"),
+                            ]
+                        }
+                    ]
+                }
+            }
+        );
+    }
+
+    #[test]
+    fn test_delimited() {
+        let mut input = r#"<?abc?><?abc?> TEST"#;
+
+        let output: Vec<&str> = repeat(0.., delimited("<?", alpha1::<&str, ContextError>, "?>"))
+            .parse_next(&mut input)
+            .unwrap();
+
+        assert_eq!(input, " TEST");
+        assert_eq!(output, vec!["abc", "abc"]);
     }
 }

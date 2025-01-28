@@ -1,6 +1,5 @@
 use winnow::{
-    ascii::alpha1,
-    combinator::{alt, delimited, separated, separated_pair},
+    combinator::{alt, delimited, opt, separated, separated_pair},
     token::take_while,
     PResult, Parser,
 };
@@ -27,21 +26,31 @@ pub(super) fn parse_content<'s>(input: &mut &'s str) -> PResult<&'s str> {
 }
 
 pub(super) fn parse_attribute_key<'s>(input: &mut &'s str) -> PResult<&'s str> {
-    alpha1.parse_next(input)
+    inner.parse_next(input)
 }
 
 pub(super) fn parse_attribute_value<'s>(input: &mut &'s str) -> PResult<&'s str> {
-    alt((parse_with_quotes, parse_inner)).parse_next(input)
+    alt((parse_with_quotes, inner)).parse_next(input)
 }
 
 fn parse_with_quotes<'s>(input: &mut &'s str) -> PResult<&'s str> {
-    delimited('"', parse_inner, '"').parse_next(input)
+    delimited('"', inner, '"').parse_next(input)
 }
 
-fn parse_inner<'s>(input: &mut &'s str) -> PResult<&'s str> {
+pub(super) fn inner<'s>(input: &mut &'s str) -> PResult<&'s str> {
     take_while(
         1..,
-        ('a'..='z', 'A'..='Z', '0'..='9', '-', '=', '.', '&', ';'),
+        (
+            'a'..='z',
+            'A'..='Z',
+            '0'..='9',
+            '-',
+            '.',
+            '&',
+            ';',
+            '/',
+            ':',
+        ),
     )
     .parse_next(input)
 }
@@ -51,11 +60,12 @@ pub(super) fn parse_attribute_kv<'s>(input: &mut &'s str) -> PResult<(&'s str, &
 }
 
 pub(super) fn parse_attribute_kvs<'s>(input: &mut &'s str) -> PResult<Vec<(&'s str, &'s str)>> {
-    separated(0.., parse_attribute_kv, " ").parse_next(input)
+    opt(' ').parse_next(input)?;
+    separated(0.., parse_attribute_kv, ' ').parse_next(input)
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

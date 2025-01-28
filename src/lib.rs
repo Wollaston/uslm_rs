@@ -1,7 +1,9 @@
 use header::Header;
 use winnow::PResult;
 
+mod attributes;
 mod common;
+mod doc;
 mod header;
 mod tags;
 
@@ -12,8 +14,8 @@ pub struct Uslm<'s> {
 
 impl<'s> Uslm<'s> {
     pub fn parse(input: &mut &'s str) -> PResult<Self> {
-        Ok(Uslm {
-            header: Header::parse(input)?,
-        })
+        let header = Header::parse(input)?;
+
+        Ok(Uslm { header })
     }
 }

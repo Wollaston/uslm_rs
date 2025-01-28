@@ -8,8 +8,8 @@ use winnow::{
 };
 
 use crate::{
+    attributes::Attribute,
     common::{parse_attribute_kvs, parse_content},
-    header::Attribute,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -21,24 +21,25 @@ pub(super) struct Tag<'s> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum TagType {
+pub(crate) enum TagType {
     Doc(DocTag),
     Meta(MetaTag),
     Standard(StandardTag),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum DocTag {
+pub(super) enum DocTag {
     LawDoc,
+    Bill,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum MetaTag {
+pub(super) enum MetaTag {
     Meta,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum StandardTag {
+pub(super) enum StandardTag {
     Property,
     Img,
 }
@@ -48,10 +49,10 @@ impl FromStr for TagType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let tag = match s {
-            "LawDoc" => TagType::Doc(DocTag::from_str(s)?),
+            "lawDoc" | "bill" => TagType::Doc(DocTag::from_str(s)?),
             "meta" => TagType::Meta(MetaTag::from_str(s)?),
-            "standard" | "img" => TagType::Standard(StandardTag::from_str(s)?),
-            _ => panic!("Unknown TagType"),
+            "property" | "img" => TagType::Standard(StandardTag::from_str(s)?),
+            _ => panic!("Unknown TagType: {:#?}", s),
         };
         Ok(tag)
     }
@@ -63,6 +64,7 @@ impl FromStr for DocTag {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "lawDoc" => Ok(DocTag::LawDoc),
+            "bill" => Ok(DocTag::Bill),
             _ => panic!("Unkown DocTag: {:#?}", s),
         }
     }
