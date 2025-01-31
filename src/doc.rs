@@ -4,26 +4,26 @@ use winnow::{ModalResult, Parser};
 
 use crate::{
     attributes::{Attribute, VecExt},
-    common::{inner, parse_attribute_kvs},
-    tags::TagType,
+    common::{inner, kvs},
+    tags::{self, Tag, TagType},
 };
 
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct Doc<'s> {
+#[derive(Debug, PartialEq, Eq, Default)]
+pub struct Doc<'s> {
     tag_type: TagType,
     attributes: Vec<Attribute<'s>>,
-    content: Option<&'s str>,
-    // children: Vec<Tag<'s>>,
+    children: Vec<Tag<'s>>,
 }
 
 impl<'s> Doc<'s> {
-    fn parse(input: &mut &'s str) -> ModalResult<Self> {
+    pub fn parse(input: &mut &'s str) -> ModalResult<Self> {
         let tag_type = TagType::from_str(inner.parse_next(input)?).unwrap();
-        let attributes = parse_attribute_kvs(input)?.into_attributes();
+        let attributes = kvs(input)?.into_attributes();
+        let children = tags::parse(input)?;
         Ok(Self {
             tag_type,
             attributes,
-            content: None,
+            children,
         })
     }
 }
@@ -50,7 +50,7 @@ mod tests {
     fn test_parse_attribute_kvs_single() {
         let mut input = r#"xmlns="http://schemas.gpo.gov/xml/uslm""#;
 
-        let output = parse_attribute_kvs(&mut input).unwrap();
+        let output = kvs(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(output, vec![("xmlns", "http://schemas.gpo.gov/xml/uslm")]);
@@ -60,7 +60,7 @@ mod tests {
     fn test_parse_attribute_single() {
         let mut input = r#"xmlns="http://schemas.gpo.gov/xml/uslm""#;
 
-        let output = parse_attribute_kvs(&mut input).unwrap().into_attributes();
+        let output = kvs(&mut input).unwrap().into_attributes();
 
         assert_eq!(input, "");
         assert_eq!(
@@ -75,7 +75,7 @@ mod tests {
     fn test_parse_attribute_multiple() {
         let mut input = r#"xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/""#;
 
-        let output = parse_attribute_kvs(&mut input).unwrap().into_attributes();
+        let output = kvs(&mut input).unwrap().into_attributes();
 
         assert_eq!(input, "");
         assert_eq!(

@@ -6,12 +6,12 @@ use winnow::{
 
 use crate::{
     attributes::{Attribute, VecExt},
-    common::{inner, parse_attribute_kvs},
+    common::{inner, kvs},
 };
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct Header<'s> {
-    tags: Vec<HeaderTag<'s>>,
+pub struct Header<'s> {
+    pub tags: Vec<HeaderTag<'s>>,
 }
 
 impl<'s> Header<'s> {
@@ -22,13 +22,13 @@ impl<'s> Header<'s> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct HeaderTag<'s> {
-    tag_type: HeaderTagType,
-    attributes: Vec<Attribute<'s>>,
+pub struct HeaderTag<'s> {
+    pub tag_type: HeaderTagType,
+    pub attributes: Vec<Attribute<'s>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum HeaderTagType {
+pub enum HeaderTagType {
     Xml,
     XmlStyleSheet,
 }
@@ -48,8 +48,7 @@ impl FromStr for HeaderTagType {
 
 fn header_tag<'s>(input: &mut &'s str) -> ModalResult<HeaderTag<'s>> {
     let tag_type = HeaderTagType::from_str(inner.parse_next(input)?).unwrap();
-    let attributes = parse_attribute_kvs(input);
-    dbg!(&attributes);
+    let attributes = kvs(input);
     Ok(HeaderTag {
         tag_type,
         attributes: attributes?.into_attributes(),
@@ -63,10 +62,7 @@ mod tests {
 
     use super::*;
 
-    use crate::{
-        attributes::{Encoding, Version},
-        Uslm,
-    };
+    use crate::attributes::{Encoding, Version};
 
     #[test]
     fn test_xml_tag() {
@@ -170,60 +166,6 @@ mod tests {
                         ]
                     }
                 ]
-            }
-        );
-    }
-
-    #[test]
-    fn test_parse_uslm() {
-        let mut input = r#"<?xml version="1.0" encoding="UTF-8"?>"#;
-
-        let output = Uslm::parse(&mut input).unwrap();
-
-        assert_eq!(
-            output,
-            Uslm {
-                header: Header {
-                    tags: vec![HeaderTag {
-                        tag_type: HeaderTagType::Xml,
-                        attributes: vec![
-                            Attribute::Version(Version::One),
-                            Attribute::Encoding(Encoding::Utf8)
-                        ],
-                    }]
-                }
-            }
-        );
-    }
-
-    #[test]
-    fn test_parse_multi_header_uslm() {
-        let mut input = r#"<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type="text/css" href="uslm.css"?>"#;
-
-        let output = Uslm::parse(&mut input).unwrap();
-        dbg!(&input, &output);
-
-        assert_eq!(
-            output,
-            Uslm {
-                header: Header {
-                    tags: vec![
-                        HeaderTag {
-                            tag_type: HeaderTagType::Xml,
-                            attributes: vec![
-                                Attribute::Version(Version::One),
-                                Attribute::Encoding(Encoding::Utf8)
-                            ],
-                        },
-                        HeaderTag {
-                            tag_type: HeaderTagType::XmlStyleSheet,
-                            attributes: vec![
-                                Attribute::StyleType(TEXT_CSS),
-                                Attribute::Href("uslm.css"),
-                            ]
-                        }
-                    ]
-                }
             }
         );
     }

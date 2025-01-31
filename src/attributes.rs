@@ -4,7 +4,7 @@ use mime::Mime;
 use url::Url;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum Attribute<'s> {
+pub enum Attribute<'s> {
     Version(Version),
     Encoding(Encoding),
     Name(&'s str),
@@ -21,7 +21,7 @@ pub(super) enum Attribute<'s> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum Version {
+pub enum Version {
     One,
 }
 
@@ -37,7 +37,7 @@ impl FromStr for Version {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum Encoding {
+pub enum Encoding {
     Utf8,
 }
 

@@ -1,54 +1,63 @@
-use std::str::FromStr;
+use std::{fmt::Debug, str::FromStr};
 
 use winnow::{
-    combinator::{delimited, dispatch, fail, opt, peek, preceded},
+    combinator::{alt, delimited, dispatch, fail, opt, peek, preceded, repeat},
     stream::AsChar,
     token::{any, take_while},
     ModalResult, Parser,
 };
 
 use crate::{
-    attributes::Attribute,
-    common::{parse_attribute_kvs, parse_content, ws},
+    attributes::{Attribute, VecExt},
+    common::{content, kvs, ws},
 };
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct Tag<'s> {
+pub struct Tag<'s> {
     tag_type: TagType,
     attributes: Vec<Attribute<'s>>,
     content: Option<&'s str>,
     children: Vec<Tag<'s>>,
 }
 
-fn tag<'s>(input: &mut &'s str) -> ModalResult<Vec<Tag<'s>>> {
-    let tag = parse_opening_tag(input)?;
+pub fn parse<'s>(input: &mut &'s str) -> ModalResult<Vec<Tag<'s>>> {
+    let tags: Vec<Tag<'s>> = repeat(0.., delimited(ws, tag, ws)).parse_next(input)?;
+    Ok(tags)
+}
+
+fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
+    let tag_type = alt((closing_tag, opening_tag)).parse_next(input)?;
 
     let attributes = dispatch!(peek(any);
-        '>' => parse_close,
-        ' ' => parse_open,
-        '/' => parse_self_closing,
+        '>' => tag_close,
+        ' ' => tag_open,
+        '/' => self_closing_tag,
     _ => fail
     )
     .parse_next(input)?
     .into_attributes();
 
-    opt(ws).parse_next(input)?;
+    dbg!(&tag_type, &attributes, &input);
 
-    let children = dispatch!(peek(any);
-    '<' => tag,
-    _ => Vec::<Tag<'s>>::new(),
-    )
-    .parse_next(input)?;
+    let res = if let Some(children) = opt(parse).parse_next(input)? {
+        Tag {
+            tag_type,
+            attributes,
+            content: content(input).ok(),
+            children,
+        }
+    } else {
+        Tag {
+            tag_type,
+            attributes,
+            content: content(input).ok(),
+            children: Vec::new(),
+        }
+    };
 
-    let content = parse_content(input).ok();
-    parse_closing_tag(input)?;
+    closing_tag.parse_next(input)?;
 
-    Ok(vec![Tag {
-        tag_type: tag,
-        attributes,
-        content,
-        children,
-    }])
+    Ok(res)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -58,10 +67,22 @@ pub(crate) enum TagType {
     Standard(StandardTag),
 }
 
+impl Default for TagType {
+    fn default() -> Self {
+        Self::Doc(DocTag::default())
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum DocTag {
     LawDoc,
     Bill,
+}
+
+impl Default for DocTag {
+    fn default() -> Self {
+        Self::LawDoc
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -79,6 +100,7 @@ impl FromStr for TagType {
     type Err = winnow::error::ErrMode<winnow::error::ContextError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        dbg!(&s);
         let tag = match s {
             "lawDoc" | "bill" => TagType::Doc(DocTag::from_str(s)?),
             "meta" => TagType::Meta(MetaTag::from_str(s)?),
@@ -126,44 +148,30 @@ impl FromStr for StandardTag {
 
 /// Parses the '>' from a tag and returns the empty array
 /// required for the Tag's Vec<Attribute<'s>>.
-fn parse_close<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
+fn tag_close<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
     ">".value(Vec::new()).parse_next(input)
 }
 
-fn parse_open<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
-    let output = preceded(" ", parse_attribute_kvs).parse_next(input)?;
+fn tag_open<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
+    let output = preceded(" ", kvs).parse_next(input)?;
     ">".parse_next(input)?;
     Ok(output)
 }
 
-fn parse_self_closing<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
+fn self_closing_tag<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
+    dbg!(&input);
     "/".parse_next(input)?;
     ">".value(Vec::new()).parse_next(input)
 }
 
-fn parse_opening_tag<'s>(input: &mut &'s str) -> ModalResult<TagType> {
+fn opening_tag(input: &mut &str) -> ModalResult<TagType> {
     let output = preceded('<', take_while(0.., AsChar::is_alphanum)).parse_next(input)?;
     TagType::from_str(output)
 }
 
-fn parse_closing_tag<'s>(input: &mut &'s str) -> ModalResult<TagType> {
+fn closing_tag(input: &mut &str) -> ModalResult<TagType> {
     let output = delimited("</", take_while(0.., AsChar::is_alphanum), '>').parse_next(input)?;
     TagType::from_str(output)
-}
-
-trait VecExt<'s> {
-    fn into_attributes(self) -> Vec<Attribute<'s>>;
-}
-
-impl<'s> VecExt<'s> for Vec<(&'s str, &'s str)> {
-    fn into_attributes(self) -> Vec<Attribute<'s>> {
-        self.into_iter()
-            .map(|(k, v)| match k {
-                "name" => Attribute::Name(v),
-                _ => panic!("Unrecognized attribute"),
-            })
-            .collect::<Vec<Attribute<'s>>>()
-    }
 }
 
 #[cfg(test)]
@@ -179,12 +187,12 @@ mod tests {
         assert_eq!(input, "");
         assert_eq!(
             output,
-            vec![Tag {
+            Tag {
                 tag_type: TagType::Standard(StandardTag::Property),
                 attributes: vec![Attribute::Name("&quot;docTitle&quot;")],
                 content: Some("CONTENT"),
                 children: vec![],
-            }]
+            }
         )
     }
 
@@ -197,12 +205,12 @@ mod tests {
         assert_eq!(input, "");
         assert_eq!(
             output,
-            vec![Tag {
+            Tag {
                 tag_type: TagType::Meta(MetaTag::Meta),
                 attributes: vec![],
                 content: None,
                 children: vec![],
-            }]
+            }
         )
     }
 
@@ -215,12 +223,12 @@ mod tests {
         assert_eq!(input, "");
         assert_eq!(
             output,
-            vec![Tag {
+            Tag {
                 tag_type: TagType::Meta(MetaTag::Meta),
                 attributes: vec![],
                 content: Some("CONTENT"),
                 children: vec![],
-            }]
+            }
         )
     }
 
@@ -228,7 +236,7 @@ mod tests {
     fn test_parse_self_closing() {
         let mut input = "/>";
 
-        let output = parse_self_closing(&mut input).unwrap();
+        let output = self_closing_tag(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(output, vec![],)
@@ -238,7 +246,7 @@ mod tests {
     fn test_parse_open_tag() {
         let mut input = "<property";
 
-        let output = parse_opening_tag(&mut input).unwrap();
+        let output = opening_tag(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(output, TagType::Standard(StandardTag::Property));
@@ -248,7 +256,7 @@ mod tests {
     fn test_parse_close_tag() {
         let mut input = "</property>";
 
-        let output = parse_closing_tag(&mut input).unwrap();
+        let output = closing_tag(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(output, TagType::Standard(StandardTag::Property));
@@ -258,7 +266,7 @@ mod tests {
     fn test_parse_open() {
         let mut input = " name=&quot;docTitle&quot;>";
 
-        let output = parse_open(&mut input).unwrap();
+        let output = tag_open(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(output, vec![("name", "&quot;docTitle&quot;")]);
@@ -268,7 +276,7 @@ mod tests {
     fn test_parse_open_multi() {
         let mut input = " name=&quot;docTitle&quot; second=tag>";
 
-        let output = parse_open(&mut input).unwrap();
+        let output = tag_open(&mut input).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(
@@ -281,7 +289,7 @@ mod tests {
     fn test_parse_close() {
         let mut input = "> CONTENT";
 
-        let output = parse_close(&mut input).unwrap();
+        let output = tag_close(&mut input).unwrap();
 
         assert_eq!(input, " CONTENT");
         assert_eq!(output, Vec::new());
