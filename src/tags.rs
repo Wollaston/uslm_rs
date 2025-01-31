@@ -21,14 +21,12 @@ pub struct Tag<'s> {
 }
 
 pub fn parse<'s>(input: &mut &'s str) -> ModalResult<Vec<Tag<'s>>> {
-    dbg!(&input);
     let tags: Vec<Tag<'s>> = repeat(0.., delimited(ws, tag, ws)).parse_next(input)?;
     Ok(tags)
 }
 
 fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
     let tag_type = alt((closing_tag, opening_tag)).parse_next(input)?;
-    dbg!(&tag_type);
 
     let attributes = dispatch!(peek(any);
         '>' => tag_close,
@@ -38,8 +36,6 @@ fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
     )
     .parse_next(input)?
     .into_attributes();
-
-    dbg!(&attributes);
 
     let res = if let Some(children) = opt(parse).parse_next(input)? {
         Tag {
@@ -56,7 +52,6 @@ fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
             children: Vec::new(),
         }
     };
-    dbg!(&res);
 
     closing_tag.parse_next(input)?;
 
@@ -103,7 +98,6 @@ impl FromStr for TagType {
     type Err = winnow::error::ErrMode<winnow::error::ContextError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        dbg!(&s);
         let tag = match s {
             "lawDoc" | "bill" => TagType::Doc(DocTag::from_str(s)?),
             "meta" => TagType::Meta(MetaTag::from_str(s)?),
@@ -156,15 +150,12 @@ fn tag_close<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
 }
 
 fn tag_open<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
-    dbg!(&input);
     let output = preceded(" ", kvs).parse_next(input)?;
-    dbg!(&output);
     ">".parse_next(input)?;
     Ok(output)
 }
 
 fn self_closing_tag<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
-    dbg!(&input);
     "/".parse_next(input)?;
     ">".value(Vec::new()).parse_next(input)
 }

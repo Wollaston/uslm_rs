@@ -145,7 +145,6 @@ mod tests {
         let mut input = r#"<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type="text/css" href="uslm.css"?>"#;
 
         let output = Header::parse(&mut input).unwrap();
-        dbg!(&input, &output);
 
         assert_eq!(
             output,
