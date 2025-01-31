@@ -14,19 +14,21 @@ use crate::{
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Tag<'s> {
-    tag_type: TagType,
-    attributes: Vec<Attribute<'s>>,
-    content: Option<&'s str>,
-    children: Vec<Tag<'s>>,
+    pub tag_type: TagType,
+    pub attributes: Vec<Attribute<'s>>,
+    pub content: Option<&'s str>,
+    pub children: Vec<Tag<'s>>,
 }
 
 pub fn parse<'s>(input: &mut &'s str) -> ModalResult<Vec<Tag<'s>>> {
+    dbg!(&input);
     let tags: Vec<Tag<'s>> = repeat(0.., delimited(ws, tag, ws)).parse_next(input)?;
     Ok(tags)
 }
 
 fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
     let tag_type = alt((closing_tag, opening_tag)).parse_next(input)?;
+    dbg!(&tag_type);
 
     let attributes = dispatch!(peek(any);
         '>' => tag_close,
@@ -37,7 +39,7 @@ fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
     .parse_next(input)?
     .into_attributes();
 
-    dbg!(&tag_type, &attributes, &input);
+    dbg!(&attributes);
 
     let res = if let Some(children) = opt(parse).parse_next(input)? {
         Tag {
@@ -54,6 +56,7 @@ fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
             children: Vec::new(),
         }
     };
+    dbg!(&res);
 
     closing_tag.parse_next(input)?;
 
@@ -61,7 +64,7 @@ fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum TagType {
+pub enum TagType {
     Doc(DocTag),
     Meta(MetaTag),
     Standard(StandardTag),
@@ -74,7 +77,7 @@ impl Default for TagType {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum DocTag {
+pub enum DocTag {
     LawDoc,
     Bill,
 }
@@ -86,12 +89,12 @@ impl Default for DocTag {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum MetaTag {
+pub enum MetaTag {
     Meta,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum StandardTag {
+pub enum StandardTag {
     Property,
     Img,
 }
@@ -153,7 +156,9 @@ fn tag_close<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
 }
 
 fn tag_open<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
+    dbg!(&input);
     let output = preceded(" ", kvs).parse_next(input)?;
+    dbg!(&output);
     ">".parse_next(input)?;
     Ok(output)
 }
