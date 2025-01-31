@@ -52,14 +52,14 @@ impl FromStr for Encoding {
     }
 }
 
-trait VecExt<'s> {
+pub(super) trait VecExt<'s> {
     fn into_attributes(self) -> Vec<Attribute<'s>>;
 }
 
 impl<'s> VecExt<'s> for Vec<(&'s str, &'s str)> {
     fn into_attributes(self) -> Vec<Attribute<'s>> {
         self.into_iter()
-            .map(|(k, v)| -> Result<Attribute<'_>, Box<dyn Error>> {
+            .flat_map(|(k, v)| -> Result<Attribute<'_>, Box<dyn Error>> {
                 let attribute = match k {
                     "version" => Attribute::Version(Version::from_str(v)?),
                     "encoding" => Attribute::Encoding(Encoding::from_str(v)?),
@@ -78,7 +78,6 @@ impl<'s> VecExt<'s> for Vec<(&'s str, &'s str)> {
                 };
                 Ok(attribute)
             })
-            .flatten()
             .collect()
     }
 }

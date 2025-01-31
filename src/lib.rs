@@ -1,5 +1,5 @@
 use header::Header;
-use winnow::PResult;
+use winnow::ModalResult;
 
 mod attributes;
 mod common;
@@ -13,7 +13,7 @@ pub struct Uslm<'s> {
 }
 
 impl<'s> Uslm<'s> {
-    pub fn parse(input: &mut &'s str) -> PResult<Self> {
+    pub fn parse(input: &mut &'s str) -> ModalResult<Self> {
         let header = Header::parse(input)?;
 
         Ok(Uslm { header })

@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
-use winnow::{PResult, Parser};
+use winnow::{ModalResult, Parser};
 
 use crate::{
-    attributes::Attribute,
+    attributes::{Attribute, VecExt},
     common::{inner, parse_attribute_kvs},
     tags::TagType,
 };
@@ -17,7 +17,7 @@ pub(super) struct Doc<'s> {
 }
 
 impl<'s> Doc<'s> {
-    fn parse(input: &mut &'s str) -> PResult<Self> {
+    fn parse(input: &mut &'s str) -> ModalResult<Self> {
         let tag_type = TagType::from_str(inner.parse_next(input)?).unwrap();
         let attributes = parse_attribute_kvs(input)?.into_attributes();
         Ok(Self {
@@ -30,6 +30,8 @@ impl<'s> Doc<'s> {
 
 #[cfg(test)]
 mod tests {
+    use url::Url;
+
     use crate::tags::DocTag;
 
     use super::*;

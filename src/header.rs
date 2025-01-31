@@ -1,11 +1,11 @@
 use std::{error::Error, str::FromStr};
 use winnow::{
     combinator::{delimited, repeat},
-    PResult, Parser,
+    ModalResult, Parser,
 };
 
 use crate::{
-    attributes::Attribute,
+    attributes::{Attribute, VecExt},
     common::{inner, parse_attribute_kvs},
 };
 
@@ -15,7 +15,7 @@ pub(super) struct Header<'s> {
 }
 
 impl<'s> Header<'s> {
-    pub(super) fn parse(input: &mut &'s str) -> PResult<Self> {
+    pub(super) fn parse(input: &mut &'s str) -> ModalResult<Self> {
         let tags = repeat(0.., delimited("<?", header_tag, "?>")).parse_next(input)?;
         Ok(Header { tags })
     }
@@ -46,7 +46,7 @@ impl FromStr for HeaderTagType {
     }
 }
 
-fn header_tag<'s>(input: &mut &'s str) -> PResult<HeaderTag<'s>> {
+fn header_tag<'s>(input: &mut &'s str) -> ModalResult<HeaderTag<'s>> {
     let tag_type = HeaderTagType::from_str(inner.parse_next(input)?).unwrap();
     let attributes = parse_attribute_kvs(input);
     dbg!(&attributes);
@@ -63,7 +63,10 @@ mod tests {
 
     use super::*;
 
-    use crate::Uslm;
+    use crate::{
+        attributes::{Encoding, Version},
+        Uslm,
+    };
 
     #[test]
     fn test_xml_tag() {

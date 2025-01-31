@@ -1,10 +1,10 @@
 use winnow::{
     combinator::{alt, delimited, opt, separated, separated_pair},
     token::take_while,
-    PResult, Parser,
+    ModalResult, Parser,
 };
 
-pub(super) fn parse_content<'s>(input: &mut &'s str) -> PResult<&'s str> {
+pub(super) fn parse_content<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
     take_while(
         1..,
         (
@@ -25,19 +25,19 @@ pub(super) fn parse_content<'s>(input: &mut &'s str) -> PResult<&'s str> {
     .parse_next(input)
 }
 
-pub(super) fn parse_attribute_key<'s>(input: &mut &'s str) -> PResult<&'s str> {
+pub(super) fn parse_attribute_key<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
     inner.parse_next(input)
 }
 
-pub(super) fn parse_attribute_value<'s>(input: &mut &'s str) -> PResult<&'s str> {
+pub(super) fn parse_attribute_value<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
     alt((parse_with_quotes, inner)).parse_next(input)
 }
 
-fn parse_with_quotes<'s>(input: &mut &'s str) -> PResult<&'s str> {
+fn parse_with_quotes<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
     delimited('"', inner, '"').parse_next(input)
 }
 
-pub(super) fn inner<'s>(input: &mut &'s str) -> PResult<&'s str> {
+pub(super) fn inner<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
     take_while(
         1..,
         (
@@ -55,14 +55,20 @@ pub(super) fn inner<'s>(input: &mut &'s str) -> PResult<&'s str> {
     .parse_next(input)
 }
 
-pub(super) fn parse_attribute_kv<'s>(input: &mut &'s str) -> PResult<(&'s str, &'s str)> {
+pub(super) fn parse_attribute_kv<'s>(input: &mut &'s str) -> ModalResult<(&'s str, &'s str)> {
     separated_pair(parse_attribute_key, '=', parse_attribute_value).parse_next(input)
 }
 
-pub(super) fn parse_attribute_kvs<'s>(input: &mut &'s str) -> PResult<Vec<(&'s str, &'s str)>> {
+pub(super) fn parse_attribute_kvs<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s str)>> {
     opt(' ').parse_next(input)?;
     separated(0.., parse_attribute_kv, ' ').parse_next(input)
 }
+
+pub(crate) fn ws<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
+    take_while(0.., WS).parse_next(input)
+}
+
+const WS: &[char] = &[' ', '\t', '\r', '\n'];
 
 #[cfg(test)]
 mod tests {
