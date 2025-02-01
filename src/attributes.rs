@@ -18,6 +18,8 @@ pub enum Attribute<'s> {
     XsiSchemaLocation(Url),
     XmlLang(&'s str),
     Id(&'s str),
+    Role(&'s str),
+    Value(&'s str),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -74,6 +76,8 @@ impl<'s> VecExt<'s> for Vec<(&'s str, &'s str)> {
                     "xsi:schemaLocation" => Attribute::XsiSchemaLocation(Url::from_str(v)?),
                     "xml:lang" => Attribute::XmlLang(v),
                     "id" => Attribute::Id(v),
+                    "role" => Attribute::Role(v),
+                    "value" => Attribute::Value(v),
                     _ => panic!("Unrecognized doc attribute variant: {:#?}", v),
                 };
                 Ok(attribute)

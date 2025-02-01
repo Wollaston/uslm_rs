@@ -13,13 +13,20 @@ pub(super) fn content<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
             '0'..='9',
             '-',
             '=',
+            '+',
             '.',
+            ',',
             '&',
             ';',
             '\n',
             '\r',
             '\t',
             ' ',
+            ':',
+            '/',
+            '[',
+            ']',
+            '–',
         ),
     )
     .parse_next(input)
@@ -152,5 +159,42 @@ mod tests {
 
         assert_eq!(input, "");
         assert_eq!(output, vec![("version", "1.0"), ("encoding", r#"UTF-8"#)]);
+    }
+
+    #[test]
+    fn test_example_content() {
+        let mut input = "110 S 2062 RIS: To amend the Native American Housing Assistance and Self-Determination Act of 1996 to reauthorize that Act, and for other purposes.";
+
+        let output = content.parse_next(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(output, "110 S 2062 RIS: To amend the Native American Housing Assistance and Self-Determination Act of 1996 to reauthorize that Act, and for other purposes.");
+    }
+
+    #[test]
+    fn test_bracketed_content() {
+        let mut input = "[Report No. 110–238]";
+
+        let output = content.parse_next(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(output, "[Report No. 110–238]");
+    }
+
+    #[test]
+    fn test_metadata_kvs() {
+        let mut input = r#"role="report" href="/us/srpt/110/238" value="CRPT-110srpt238""#;
+
+        let output = kvs(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(
+            output,
+            vec![
+                ("role", "report"),
+                ("href", r#"/us/srpt/110/238"#),
+                ("value", r#"CRPT-110srpt238"#)
+            ]
+        );
     }
 }
