@@ -41,7 +41,26 @@ pub(super) fn value<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
 }
 
 fn with_quotes<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
-    delimited('"', inner, '"').parse_next(input)
+    delimited('"', val_text, '"').parse_next(input)
+}
+
+pub(super) fn val_text<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
+    take_while(
+        1..,
+        (
+            'a'..='z',
+            'A'..='Z',
+            '0'..='9',
+            '-',
+            '.',
+            '&',
+            ';',
+            '/',
+            ':',
+            ' ',
+        ),
+    )
+    .parse_next(input)
 }
 
 pub(super) fn inner<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
@@ -139,6 +158,16 @@ mod tests {
 
         assert_eq!(input, "");
         assert_eq!(output, vec![("version", "1.0")]);
+    }
+
+    #[test]
+    fn test_parse_attribute_kvs_single_title() {
+        let mut input = r#"title="Chapter 1""#;
+
+        let output = kvs(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(output, vec![("title", "Chapter 1")]);
     }
 
     #[test]

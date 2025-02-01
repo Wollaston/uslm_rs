@@ -1,12 +1,13 @@
 use std::{error::Error, str::FromStr};
 use winnow::{
-    combinator::{delimited, repeat},
+    combinator::{alt, delimited, repeat},
+    token::literal,
     ModalResult, Parser,
 };
 
 use crate::{
     attributes::{Attribute, VecExt},
-    common::{inner, kvs},
+    common::kvs,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -47,12 +48,17 @@ impl FromStr for HeaderTagType {
 }
 
 fn header_tag<'s>(input: &mut &'s str) -> ModalResult<HeaderTag<'s>> {
-    let tag_type = HeaderTagType::from_str(inner.parse_next(input)?).unwrap();
+    let tag_type = HeaderTagType::from_str(header_type.parse_next(input)?).unwrap();
+
     let attributes = kvs(input);
     Ok(HeaderTag {
         tag_type,
         attributes: attributes?.into_attributes(),
     })
+}
+
+fn header_type<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
+    alt((literal("xml-stylesheet"), literal("xml"))).parse_next(input)
 }
 
 #[cfg(test)]
@@ -77,7 +83,7 @@ mod tests {
     fn test_xml_stylesheet_tag() {
         let mut input = r#"xml-stylesheet"#;
 
-        let output = HeaderTagType::from_str(inner.parse_next(&mut input).unwrap()).unwrap();
+        let output = HeaderTagType::from_str(header_type.parse_next(&mut input).unwrap()).unwrap();
 
         assert_eq!(input, "");
         assert_eq!(output, HeaderTagType::XmlStyleSheet);
@@ -134,7 +140,7 @@ mod tests {
             Header {
                 tags: vec![HeaderTag {
                     tag_type: HeaderTagType::XmlStyleSheet,
-                    attributes: vec![Attribute::StyleType(TEXT_CSS), Attribute::Href("uslm.css"),]
+                    attributes: vec![Attribute::Type(TEXT_CSS), Attribute::Href("uslm.css"),]
                 }]
             }
         );
@@ -159,10 +165,7 @@ mod tests {
                     },
                     HeaderTag {
                         tag_type: HeaderTagType::XmlStyleSheet,
-                        attributes: vec![
-                            Attribute::StyleType(TEXT_CSS),
-                            Attribute::Href("uslm.css"),
-                        ]
+                        attributes: vec![Attribute::Type(TEXT_CSS), Attribute::Href("uslm.css"),]
                     }
                 ]
             }

@@ -37,7 +37,6 @@ fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
     )
     .parse_next(input)?
     .into_attributes();
-
     let res = if let Some(children) = opt(parse).parse_next(input)? {
         Tag {
             tag_type,
@@ -61,38 +60,430 @@ fn tag<'s>(input: &mut &'s str) -> ModalResult<Tag<'s>> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum TagType {
-    Doc(DocTag),
-    Meta(MetaTag),
-    Standard(StandardTag),
+    Primitive(Primitive),
+    Core(Core),
+    Generic(Generic),
+    Doc(Doc),
+    Property(Property),
+    Title(Title),
+    Level(Level),
+    Note(Note),
+    Signature(Signature),
+    Appendix(Appendix),
+    Other(Other),
+    Meta(Meta),
 }
 
-impl Default for TagType {
-    fn default() -> Self {
-        Self::Doc(DocTag::default())
+impl FromStr for TagType {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let tag = match s {
+            "marker" | "inline" | "block" | "content" => {
+                TagType::Primitive(Primitive::from_str(s)?)
+            }
+            "lawDoc" | "document" | "meta" | "property" | "set" | "toc" | "tocItem" | "main"
+            | "statement" | "preamble" | "recital" | "enactingFormula" | "level" | "num"
+            | "text" | "heading" | "subheading" | "crossheading" | "instruction" | "action"
+            | "notes" | "note" | "appendix" | "signatures" | "signature" | "ref" | "date"
+            | "quotedText" | "quotedContent" => TagType::Core(Core::from_str(s)?),
+            "layout" | "header" | "row" | "column" => TagType::Generic(Generic::from_str(s)?),
+            "bill" | "statute" | "resolution" | "amendment" | "uscDoc" => {
+                TagType::Doc(Doc::from_str(s)?)
+            }
+            "docNumber" | "docPublicationName" | "docReleasePoint" => {
+                TagType::Property(Property::from_str(s)?)
+            }
+            "docTitle" | "longTitle" | "shortTitle" => TagType::Title(Title::from_str(s)?),
+            "preliminary"
+            | "title"
+            | "subtitle"
+            | "chapter"
+            | "subchapter"
+            | "part"
+            | "subpart"
+            | "division"
+            | "subdivision"
+            | "article"
+            | "subarticle"
+            | "section"
+            | "subsection"
+            | "paragraph"
+            | "subparagraph"
+            | "clause"
+            | "subclause"
+            | "item"
+            | "subitem"
+            | "subsubitem"
+            | "compiledAct"
+            | "courtRules"
+            | "courtRule"
+            | "reorganizationPlans"
+            | "reorganizationPlan" => TagType::Level(Level::from_str(s)?),
+            "sourceCredit" | "statutoryNote" | "editorialNote" | "changeNote" => {
+                TagType::Note(Note::from_str(s)?)
+            }
+            "made" | "approved" => TagType::Signature(Signature::from_str(s)?),
+            "schedule" => TagType::Appendix(Appendix::from_str(s)?),
+            "def" | "term" | "chapeau" | "continuation" | "proviso" => {
+                TagType::Other(Other::from_str(s)?)
+            }
+            "dc" | "citableAs" | "docStage" | "currentChamber" | "processedBy"
+            | "processedDate" | "congress" | "session" | "relatedDocument" | "publicPrivate"
+            | "img" => TagType::Meta(Meta::from_str(s)?),
+            _ => panic!("Unknown TagType: {:#?}", s),
+        };
+        Ok(tag)
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum DocTag {
+pub enum Primitive {
+    Marker,
+    Inline,
+    Block,
+    Content,
+}
+
+impl FromStr for Primitive {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "marker" => Primitive::Marker,
+            "inline" => Primitive::Inline,
+            "block" => Primitive::Block,
+            "content" => Primitive::Content,
+            _ => panic!("Unknown Primitive variant: {}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Core {
     LawDoc,
-    Bill,
+    Document,
+    Meta,
+    Property,
+    Set,
+    Toc,
+    TocItem,
+    Main,
+    Statement,
+    Preamble,
+    Recital,
+    EnactingFormula,
+    Level,
+    Num,
+    Text,
+    Heading,
+    Subheading,
+    Crossheading,
+    Instruction,
+    Action,
+    Notes,
+    Note,
+    Appendix,
+    Signatures,
+    Signature,
+    Ref,
+    Date,
+    QuotedText,
+    QuotedContent,
 }
 
-impl Default for DocTag {
-    fn default() -> Self {
-        Self::LawDoc
+impl FromStr for Core {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "lawDoc" => Core::LawDoc,
+            "document" => Core::Document,
+            "meta" => Core::Meta,
+            "property" => Core::Property,
+            "set" => Core::Set,
+            "toc" => Core::Toc,
+            "tocItem" => Core::TocItem,
+            "main" => Core::Main,
+            "statement" => Core::Statement,
+            "preamble" => Core::Preamble,
+            "recital" => Core::Recital,
+            "enactingFormula" => Core::EnactingFormula,
+            "level" => Core::Level,
+            "num" => Core::Num,
+            "text" => Core::Text,
+            "heading" => Core::Heading,
+            "subheading" => Core::Subheading,
+            "crossheading" => Core::Crossheading,
+            "instruction" => Core::Instruction,
+            "action" => Core::Action,
+            "notes" => Core::Notes,
+            "note" => Core::Note,
+            "appendix" => Core::Appendix,
+            "signatures" => Core::Signatures,
+            "signature" => Core::Signature,
+            "ref" => Core::Ref,
+            "date" => Core::Date,
+            "quotedText" => Core::QuotedText,
+            "quotedContent" => Core::QuotedContent,
+            _ => panic!("Unknown Core: {}", s),
+        };
+        Ok(item)
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum MetaTag {
-    Meta,
+pub enum Generic {
+    Layout,
+    Header,
+    Row,
+    Column,
+}
+
+impl FromStr for Generic {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "layout" => Generic::Layout,
+            "header" => Generic::Header,
+            "row" => Generic::Row,
+            "column" => Generic::Column,
+            _ => panic!("Unknown Generic: {}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum Doc {
+    Bill,
+    Statute,
+    Resolution,
+    Amendment,
+    UscDoc,
+}
+
+impl FromStr for Doc {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "bill" => Doc::Bill,
+            "statute" => Doc::Statute,
+            "resolution" => Doc::Resolution,
+            "amendment" => Doc::Amendment,
+            "uscDoc" => Doc::UscDoc,
+            _ => panic!("Unkown Doc: {:#?}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum Property {
+    DocNumber,
+    DocPublicationName,
+    DocReleasePoint,
+}
+
+impl FromStr for Property {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "docNumber" => Property::DocNumber,
+            "docPublicationName" => Property::DocPublicationName,
+            "docReleasePoint" => Property::DocReleasePoint,
+            _ => panic!("Unkown Property: {:#?}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum Title {
+    DocTitle,
+    LongTitle,
+    ShortTitle,
+}
+
+impl FromStr for Title {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "docTitle" => Title::DocTitle,
+            "longTitle" => Title::LongTitle,
+            "shortTitle" => Title::ShortTitle,
+            _ => panic!("Unkown Title: {:#?}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Level {
+    Preliminary,
+    Title,
+    Subtitle,
+    Chapter,
+    Subchapter,
+    Part,
+    Subpart,
+    Division,
+    Subdivision,
+    Article,
+    Subarticle,
+    Section,
+    Subsection,
+    Paragraph,
+    Subparagraph,
+    Clause,
+    Subclause,
+    Item,
+    Subitem,
+    Subsubitem,
+    CompiledAct,
+    CourtRules,
+    CourtRule,
+    ReorganizationPlans,
+    ReorganizationPlan,
+}
+
+impl FromStr for Level {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "preliminary" => Level::Preliminary,
+            "title" => Level::Title,
+            "subtitle" => Level::Subtitle,
+            "chapter" => Level::Chapter,
+            "subchapter" => Level::Subchapter,
+            "part" => Level::Part,
+            "subpart" => Level::Subpart,
+            "division" => Level::Division,
+            "subdivision" => Level::Subdivision,
+            "article" => Level::Article,
+            "subarticle" => Level::Subarticle,
+            "section" => Level::Section,
+            "subsection" => Level::Subsection,
+            "paragraph" => Level::Paragraph,
+            "subparagraph" => Level::Subparagraph,
+            "clause" => Level::Clause,
+            "subclause" => Level::Subclause,
+            "item" => Level::Item,
+            "subitem" => Level::Subitem,
+            "subsubitem" => Level::Subsubitem,
+            "compiledAct" => Level::CompiledAct,
+            "courtRules" => Level::CourtRules,
+            "courtRule" => Level::CourtRule,
+            "reorganizationPlans" => Level::ReorganizationPlans,
+            "reorganizationPlan" => Level::ReorganizationPlan,
+            _ => panic!("Unkown Level: {:#?}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Other {
+    Def,
+    Term,
+    Chapeau,
+    Continuation,
+    Proviso,
+}
+
+impl FromStr for Other {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "def" => Other::Def,
+            "term" => Other::Term,
+            "chapeau" => Other::Chapeau,
+            "continuation" => Other::Continuation,
+            "proviso" => Other::Proviso,
+            _ => panic!("Unkown Other: {:#?}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum Note {
+    SourceCredit,
+    StatutoryNote,
+    EditorialNote,
+    ChangeNote,
+}
+
+impl FromStr for Note {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "sourceCredit" => Note::SourceCredit,
+            "statutoryNote" => Note::StatutoryNote,
+            "editorialNote" => Note::EditorialNote,
+            "changeNote" => Note::ChangeNote,
+            _ => panic!("Unkown Note: {:#?}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Signature {
+    Made,
+    Approved,
+}
+
+impl FromStr for Signature {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "made" => Signature::Made,
+            "approved" => Signature::Approved,
+            _ => panic!("Unkown Signature: {:#?}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Appendix {
+    Schedule,
+}
+
+impl FromStr for Appendix {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "schedule" => Appendix::Schedule,
+            _ => panic!("Unkown Appendix: {:#?}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Meta {
     // Dublin Core Metadata Elements
     Dc(Dc),
-    Set,
-    DocNumber,
-    CitableAs,
     DocStage,
+    DocPublicationName,
+    DocReleasePoint,
+    CitableAs,
     CurrentChamber,
     ProcessedBy,
     ProcessedDate,
@@ -100,12 +491,29 @@ pub enum MetaTag {
     Session,
     RelatedDocument,
     PublicPrivate,
+    Img,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum StandardTag {
-    Property,
-    Img,
+impl FromStr for Meta {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "dc" => Meta::Dc(Dc::from_str(s)?),
+            "citableAs" => Meta::CitableAs,
+            "docStage" => Meta::DocStage,
+            "currentChamber" => Meta::CurrentChamber,
+            "processedBy" => Meta::ProcessedBy,
+            "processedDate" => Meta::ProcessedDate,
+            "congress" => Meta::Congress,
+            "session" => Meta::Session,
+            "relatedDocument" => Meta::RelatedDocument,
+            "publicPrivate" => Meta::PublicPrivate,
+            "img" => Meta::Img,
+            _ => panic!("Unkown Meta: {:#?}", s,),
+        };
+        Ok(item)
+    }
 }
 
 /// Dublin Core Metadata Elements
@@ -132,7 +540,7 @@ impl FromStr for Dc {
     type Err = winnow::error::ErrMode<winnow::error::ContextError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let dc = match s.to_lowercase().as_str() {
+        let item = match s {
             "contributor" => Dc::Contributor,
             "coverage" => Dc::Coverage,
             "creator" => Dc::Creator,
@@ -148,71 +556,9 @@ impl FromStr for Dc {
             "subject" => Dc::Subject,
             "title" => Dc::Title,
             "type" => Dc::Type,
-            _ => panic!("Unknown Dublin Core variant: {}", s),
+            _ => panic!("Unknown Dublin Core: {}", s),
         };
-        Ok(dc)
-    }
-}
-
-impl FromStr for TagType {
-    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let tag = match s {
-            "lawDoc" | "bill" => TagType::Doc(DocTag::from_str(s)?),
-            "meta" | "dc" | "docNumber" | "citableAs" | "docStage" | "currentChamber"
-            | "processedBy" | "processedDate" | "congress" | "session" | "relatedDocument"
-            | "publicPrivate" => TagType::Meta(MetaTag::from_str(s)?),
-            "property" | "img" => TagType::Standard(StandardTag::from_str(s)?),
-            _ => panic!("Unknown TagType: {:#?}", s),
-        };
-        Ok(tag)
-    }
-}
-
-impl FromStr for DocTag {
-    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "lawDoc" => Ok(DocTag::LawDoc),
-            "bill" => Ok(DocTag::Bill),
-            _ => panic!("Unkown DocTag: {:#?}", s),
-        }
-    }
-}
-
-impl FromStr for MetaTag {
-    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "meta" => Ok(MetaTag::Meta),
-            "dc" => Ok(MetaTag::Dc(Dc::from_str(s)?)),
-            "docNumber" => Ok(MetaTag::DocNumber),
-            "citableAs" => Ok(MetaTag::CitableAs),
-            "docStage" => Ok(MetaTag::DocStage),
-            "currentChamber" => Ok(MetaTag::CurrentChamber),
-            "processedBy" => Ok(MetaTag::ProcessedBy),
-            "processedDate" => Ok(MetaTag::ProcessedDate),
-            "congress" => Ok(MetaTag::Congress),
-            "session" => Ok(MetaTag::Session),
-            "relatedDocument" => Ok(MetaTag::RelatedDocument),
-            "publicPrivate" => Ok(MetaTag::PublicPrivate),
-            _ => panic!("Unkown MetaTag: {:#?}", s),
-        }
-    }
-}
-
-impl FromStr for StandardTag {
-    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "property" => Ok(StandardTag::Property),
-            "img" => Ok(StandardTag::Img),
-            _ => panic!("Unkown StandardTag: {:#?}", s),
-        }
+        Ok(item)
     }
 }
 
@@ -236,7 +582,7 @@ fn self_closing_tag<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s st
 fn dc(input: &mut &str) -> ModalResult<TagType> {
     ':'.parse_next(input)?;
     let s = take_while(0.., AsChar::is_alphanum).parse_next(input)?;
-    Ok(TagType::Meta(MetaTag::Dc(Dc::from_str(s)?)))
+    Ok(TagType::Meta(Meta::Dc(Dc::from_str(s)?)))
 }
 
 fn opening_tag(input: &mut &str) -> ModalResult<TagType> {
@@ -265,6 +611,8 @@ fn closing_tag(input: &mut &str) -> ModalResult<TagType> {
 #[cfg(test)]
 mod tests {
     use std::vec;
+
+    use crate::tags;
 
     use super::*;
 
@@ -301,34 +649,34 @@ mod tests {
         assert_eq!(
             output,
             vec![Tag {
-                tag_type: TagType::Doc(DocTag::Bill),
+                tag_type: TagType::Doc(Doc::Bill),
                 attributes: vec![],
                 content: None,
                 children: vec![
                  Tag {
-                     tag_type: TagType::Meta(MetaTag::Meta),
+                     tag_type: TagType::Core(Core::Meta),
                      attributes: vec![],
                      content: None,
                      children: vec![
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Title)), attributes: vec![], content: Some("110 S 2062 RIS: To amend the Native American Housing Assistance and Self-Determination Act of 1996 to reauthorize that Act, and for other purposes."), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Type)), attributes: vec![], content: Some("Senate Bill"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::DocNumber), attributes: vec![], content: Some("2062"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::CitableAs), attributes: vec![], content: Some("110 S 2062 RIS"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::CitableAs), attributes: vec![], content: Some("110s2062ris"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::CitableAs), attributes: vec![], content: Some("110 S. 2062 RIS"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::DocStage), attributes: vec![], content: Some("Referral Instructions Senate"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::CurrentChamber), attributes: vec![], content: Some("SENATE"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Creator)), attributes: vec![], content: Some("United States Senate"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::ProcessedBy), attributes: vec![], content: Some("GPO XPub Bill to USLM Generator, version 0.5 + manual changes"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::ProcessedDate), attributes: vec![], content: Some("2024-09-09"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Publisher)), attributes: vec![], content: Some("United States Government Publishing Office"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Format)), attributes: vec![], content: Some("text/xml"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Language)), attributes: vec![], content: Some("EN"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Rights)), attributes: vec![], content: Some("Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain."), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Congress), attributes: vec![], content: Some("110"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Session), attributes: vec![], content: Some("1"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::RelatedDocument), attributes: vec![Attribute::Role("report"), Attribute::Href("/us/srpt/110/238"), Attribute::Value("CRPT-110srpt238")], content: Some("[Report No. 110–238]"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::PublicPrivate), attributes: vec![], content: Some("public"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Title)), attributes: vec![], content: Some("110 S 2062 RIS: To amend the Native American Housing Assistance and Self-Determination Act of 1996 to reauthorize that Act, and for other purposes."), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Type)), attributes: vec![], content: Some("Senate Bill"), children: vec![] },
+                        Tag { tag_type: TagType::Property(Property::DocNumber), attributes: vec![], content: Some("2062"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::CitableAs), attributes: vec![], content: Some("110 S 2062 RIS"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::CitableAs), attributes: vec![], content: Some("110s2062ris"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::CitableAs), attributes: vec![], content: Some("110 S. 2062 RIS"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::DocStage), attributes: vec![], content: Some("Referral Instructions Senate"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::CurrentChamber), attributes: vec![], content: Some("SENATE"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Creator)), attributes: vec![], content: Some("United States Senate"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::ProcessedBy), attributes: vec![], content: Some("GPO XPub Bill to USLM Generator, version 0.5 + manual changes"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::ProcessedDate), attributes: vec![], content: Some("2024-09-09"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Publisher)), attributes: vec![], content: Some("United States Government Publishing Office"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Format)), attributes: vec![], content: Some("text/xml"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Language)), attributes: vec![], content: Some("EN"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Rights)), attributes: vec![], content: Some("Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain."), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Congress), attributes: vec![], content: Some("110"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Session), attributes: vec![], content: Some("1"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::RelatedDocument), attributes: vec![Attribute::Role("report"), Attribute::Href("/us/srpt/110/238"), Attribute::Value("CRPT-110srpt238")], content: Some("[Report No. 110–238]"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::PublicPrivate), attributes: vec![], content: Some("public"), children: vec![] },
                      ]
                  }
             ]
@@ -367,29 +715,29 @@ mod tests {
             output,
             vec![
                  Tag {
-                     tag_type: TagType::Meta(MetaTag::Meta),
+                     tag_type: TagType::Core(Core::Meta),
                      attributes: vec![],
                      content: None,
                      children: vec![
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Title)), attributes: vec![], content: Some("110 S 2062 RIS: To amend the Native American Housing Assistance and Self-Determination Act of 1996 to reauthorize that Act, and for other purposes."), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Type)), attributes: vec![], content: Some("Senate Bill"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::DocNumber), attributes: vec![], content: Some("2062"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::CitableAs), attributes: vec![], content: Some("110 S 2062 RIS"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::CitableAs), attributes: vec![], content: Some("110s2062ris"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::CitableAs), attributes: vec![], content: Some("110 S. 2062 RIS"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::DocStage), attributes: vec![], content: Some("Referral Instructions Senate"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::CurrentChamber), attributes: vec![], content: Some("SENATE"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Creator)), attributes: vec![], content: Some("United States Senate"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::ProcessedBy), attributes: vec![], content: Some("GPO XPub Bill to USLM Generator, version 0.5 + manual changes"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::ProcessedDate), attributes: vec![], content: Some("2024-09-09"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Publisher)), attributes: vec![], content: Some("United States Government Publishing Office"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Format)), attributes: vec![], content: Some("text/xml"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Language)), attributes: vec![], content: Some("EN"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Rights)), attributes: vec![], content: Some("Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain."), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Congress), attributes: vec![], content: Some("110"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::Session), attributes: vec![], content: Some("1"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::RelatedDocument), attributes: vec![Attribute::Role("report"), Attribute::Href("/us/srpt/110/238"), Attribute::Value("CRPT-110srpt238")], content: Some("[Report No. 110–238]"), children: vec![] },
-                        Tag { tag_type: TagType::Meta(MetaTag::PublicPrivate), attributes: vec![], content: Some("public"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Title)), attributes: vec![], content: Some("110 S 2062 RIS: To amend the Native American Housing Assistance and Self-Determination Act of 1996 to reauthorize that Act, and for other purposes."), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Type)), attributes: vec![], content: Some("Senate Bill"), children: vec![] },
+                        Tag { tag_type: TagType::Property(Property::DocNumber), attributes: vec![], content: Some("2062"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::CitableAs), attributes: vec![], content: Some("110 S 2062 RIS"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::CitableAs), attributes: vec![], content: Some("110s2062ris"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::CitableAs), attributes: vec![], content: Some("110 S. 2062 RIS"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::DocStage), attributes: vec![], content: Some("Referral Instructions Senate"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::CurrentChamber), attributes: vec![], content: Some("SENATE"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Creator)), attributes: vec![], content: Some("United States Senate"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::ProcessedBy), attributes: vec![], content: Some("GPO XPub Bill to USLM Generator, version 0.5 + manual changes"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::ProcessedDate), attributes: vec![], content: Some("2024-09-09"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Publisher)), attributes: vec![], content: Some("United States Government Publishing Office"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Format)), attributes: vec![], content: Some("text/xml"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Language)), attributes: vec![], content: Some("EN"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Rights)), attributes: vec![], content: Some("Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain."), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Congress), attributes: vec![], content: Some("110"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::Session), attributes: vec![], content: Some("1"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::RelatedDocument), attributes: vec![Attribute::Role("report"), Attribute::Href("/us/srpt/110/238"), Attribute::Value("CRPT-110srpt238")], content: Some("[Report No. 110–238]"), children: vec![] },
+                        Tag { tag_type: TagType::Meta(Meta::PublicPrivate), attributes: vec![], content: Some("public"), children: vec![] },
                      ]
                  }
             ]
@@ -424,25 +772,25 @@ mod tests {
         assert_eq!(
             output,
              vec![
-                Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Title)), attributes: vec![], content: Some("110 S 2062 RIS: To amend the Native American Housing Assistance and Self-Determination Act of 1996 to reauthorize that Act, and for other purposes."), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Type)), attributes: vec![], content: Some("Senate Bill"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::DocNumber), attributes: vec![], content: Some("2062"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::CitableAs), attributes: vec![], content: Some("110 S 2062 RIS"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::CitableAs), attributes: vec![], content: Some("110s2062ris"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::CitableAs), attributes: vec![], content: Some("110 S. 2062 RIS"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::DocStage), attributes: vec![], content: Some("Referral Instructions Senate"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::CurrentChamber), attributes: vec![], content: Some("SENATE"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Creator)), attributes: vec![], content: Some("United States Senate"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::ProcessedBy), attributes: vec![], content: Some("GPO XPub Bill to USLM Generator, version 0.5 + manual changes"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::ProcessedDate), attributes: vec![], content: Some("2024-09-09"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Publisher)), attributes: vec![], content: Some("United States Government Publishing Office"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Format)), attributes: vec![], content: Some("text/xml"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Language)), attributes: vec![], content: Some("EN"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::Dc(Dc::Rights)), attributes: vec![], content: Some("Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain."), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::Congress), attributes: vec![], content: Some("110"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::Session), attributes: vec![], content: Some("1"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::RelatedDocument), attributes: vec![Attribute::Role("report"), Attribute::Href("/us/srpt/110/238"), Attribute::Value("CRPT-110srpt238")], content: Some("[Report No. 110–238]"), children: vec![] },
-                Tag { tag_type: TagType::Meta(MetaTag::PublicPrivate), attributes: vec![], content: Some("public"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Title)), attributes: vec![], content: Some("110 S 2062 RIS: To amend the Native American Housing Assistance and Self-Determination Act of 1996 to reauthorize that Act, and for other purposes."), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Type)), attributes: vec![], content: Some("Senate Bill"), children: vec![] },
+                Tag { tag_type: TagType::Property(Property::DocNumber), attributes: vec![], content: Some("2062"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::CitableAs), attributes: vec![], content: Some("110 S 2062 RIS"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::CitableAs), attributes: vec![], content: Some("110s2062ris"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::CitableAs), attributes: vec![], content: Some("110 S. 2062 RIS"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::DocStage), attributes: vec![], content: Some("Referral Instructions Senate"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::CurrentChamber), attributes: vec![], content: Some("SENATE"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Creator)), attributes: vec![], content: Some("United States Senate"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::ProcessedBy), attributes: vec![], content: Some("GPO XPub Bill to USLM Generator, version 0.5 + manual changes"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::ProcessedDate), attributes: vec![], content: Some("2024-09-09"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Publisher)), attributes: vec![], content: Some("United States Government Publishing Office"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Format)), attributes: vec![], content: Some("text/xml"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Language)), attributes: vec![], content: Some("EN"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::Dc(Dc::Rights)), attributes: vec![], content: Some("Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain."), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::Congress), attributes: vec![], content: Some("110"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::Session), attributes: vec![], content: Some("1"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::RelatedDocument), attributes: vec![Attribute::Role("report"), Attribute::Href("/us/srpt/110/238"), Attribute::Value("CRPT-110srpt238")], content: Some("[Report No. 110–238]"), children: vec![] },
+                Tag { tag_type: TagType::Meta(Meta::PublicPrivate), attributes: vec![], content: Some("public"), children: vec![] },
             ]
         )
     }
@@ -457,7 +805,7 @@ mod tests {
         assert_eq!(
             output,
             vec![Tag {
-                tag_type: TagType::Meta(MetaTag::RelatedDocument),
+                tag_type: TagType::Meta(Meta::RelatedDocument),
                 attributes: vec![
                     Attribute::Role("report"),
                     Attribute::Href("/us/srpt/110/238"),
@@ -479,7 +827,7 @@ mod tests {
         assert_eq!(
             output,
             Tag {
-                tag_type: TagType::Standard(StandardTag::Property),
+                tag_type: TagType::Core(Core::Property),
                 attributes: vec![Attribute::Name("&quot;docTitle&quot;")],
                 content: Some("CONTENT"),
                 children: vec![],
@@ -497,7 +845,7 @@ mod tests {
         assert_eq!(
             output,
             Tag {
-                tag_type: TagType::Meta(MetaTag::Meta),
+                tag_type: TagType::Core(Core::Meta),
                 attributes: vec![],
                 content: None,
                 children: vec![],
@@ -515,7 +863,7 @@ mod tests {
         assert_eq!(
             output,
             Tag {
-                tag_type: TagType::Meta(MetaTag::Meta),
+                tag_type: TagType::Core(Core::Meta),
                 attributes: vec![],
                 content: Some("CONTENT"),
                 children: vec![],
@@ -540,7 +888,7 @@ mod tests {
         let output = opening_tag(&mut input).unwrap();
 
         assert_eq!(input, "");
-        assert_eq!(output, TagType::Standard(StandardTag::Property));
+        assert_eq!(output, TagType::Core(Core::Property));
     }
 
     #[test]
@@ -550,7 +898,7 @@ mod tests {
         let output = closing_tag(&mut input).unwrap();
 
         assert_eq!(input, "");
-        assert_eq!(output, TagType::Standard(StandardTag::Property));
+        assert_eq!(output, TagType::Core(Core::Property));
     }
 
     #[test]
@@ -560,7 +908,7 @@ mod tests {
         let output = dc(&mut input).unwrap();
 
         assert_eq!(input, "");
-        assert_eq!(output, TagType::Meta(MetaTag::Dc(Dc::Title)),);
+        assert_eq!(output, TagType::Meta(Meta::Dc(Dc::Title)),);
     }
 
     #[test]
@@ -573,7 +921,7 @@ mod tests {
         assert_eq!(
             output,
             Tag {
-                tag_type: TagType::Meta(MetaTag::Dc(Dc::Title)),
+                tag_type: TagType::Meta(Meta::Dc(Dc::Title)),
                 attributes: vec![],
                 content: None,
                 children: vec![]
@@ -591,7 +939,7 @@ mod tests {
         assert_eq!(
             output,
             vec![Tag {
-                tag_type: TagType::Meta(MetaTag::Dc(Dc::Title)),
+                tag_type: TagType::Meta(Meta::Dc(Dc::Title)),
                 attributes: vec![],
                 content: Some("110 S 2062 RIS: To amend the Native American Housing Assistance and Self-Determination Act of 1996 to reauthorize that Act, and for other purposes."),
                 children: vec![]
@@ -609,7 +957,7 @@ mod tests {
         assert_eq!(
             output,
             Tag {
-                tag_type: TagType::Meta(MetaTag::Dc(Dc::Title)),
+                tag_type: TagType::Meta(Meta::Dc(Dc::Title)),
                 attributes: vec![],
                 content: Some("CONTENT"),
                 children: vec![]
@@ -648,5 +996,121 @@ mod tests {
 
         assert_eq!(input, " CONTENT");
         assert_eq!(output, Vec::new());
+    }
+
+    #[test]
+    fn test_toc_columns() {
+        let mut input = r#"<column>1.</column>               <column leaders=".">General Provisions</column>
+        <column>101</column>"#;
+
+        let output = parse(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(
+            output,
+            vec![
+                Tag {
+                    tag_type: TagType::Generic(tags::Generic::Column),
+                    attributes: vec![],
+                    content: Some("1."),
+                    children: vec![]
+                },
+                Tag {
+                    tag_type: TagType::Generic(tags::Generic::Column),
+                    attributes: vec![Attribute::Leaders(".")],
+                    content: Some("General Provisions"),
+                    children: vec![]
+                },
+                Tag {
+                    tag_type: TagType::Generic(tags::Generic::Column),
+                    attributes: vec![],
+                    content: Some("101"),
+                    children: vec![]
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn test_toc_item() {
+        let mut input = r#"<tocItem></tocItem>"#;
+
+        let output = parse(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(
+            output,
+            vec![Tag {
+                tag_type: TagType::Core(Core::TocItem),
+                attributes: vec![],
+                content: None,
+                children: vec![],
+            },]
+        );
+    }
+
+    #[test]
+    fn test_toc_item_attribute() {
+        let mut input = r#"<tocItem title="Chapter 1"></tocItem>"#;
+
+        let output = parse(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(
+            output,
+            vec![Tag {
+                tag_type: TagType::Core(Core::TocItem),
+                attributes: vec![Attribute::Title("Chapter 1")],
+                content: None,
+                children: vec![],
+            },]
+        );
+    }
+
+    #[test]
+    fn test_toc_item_with_attribute() {
+        let mut input = r#"<tocItem title="Chapter 1">               <column>1.</column>               <column leaders=".">General Provisions</column>
+        <column>101</column>            </tocItem>"#;
+
+        let output = parse(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(
+            output,
+            vec![Tag {
+                tag_type: TagType::Core(Core::TocItem),
+                attributes: vec![Attribute::Title("Chapter 1")],
+                content: None,
+                children: vec![
+                    Tag {
+                        tag_type: TagType::Generic(tags::Generic::Column),
+                        attributes: vec![],
+                        content: Some("1."),
+                        children: vec![]
+                    },
+                    Tag {
+                        tag_type: TagType::Generic(tags::Generic::Column),
+                        attributes: vec![Attribute::Leaders(".")],
+                        content: Some("General Provisions"),
+                        children: vec![]
+                    },
+                    Tag {
+                        tag_type: TagType::Generic(tags::Generic::Column),
+                        attributes: vec![],
+                        content: Some("101"),
+                        children: vec![]
+                    },
+                ]
+            }]
+        );
+    }
+
+    #[test]
+    fn test_law_doc() {
+        let mut input = r#"<lawDoc xmlns="http://xml.house.gov/schemas/uslm/1.0" xsi:schemaLocation="http://xml.house.gov/schemas/uslm/1.0" xml:base="http://resolver.mydomain.com" identifier="/us/usc/t5">
+</lawDoc>"#;
+
+        let _output = parse(&mut input).unwrap();
+        assert_eq!(input, "");
     }
 }
