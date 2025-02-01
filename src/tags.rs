@@ -86,6 +86,9 @@ impl Default for DocTag {
 #[derive(Debug, PartialEq, Eq)]
 pub enum MetaTag {
     Meta,
+    // Dublin Core Metadata Elements
+    Dc(Dc),
+    Set,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -94,13 +97,60 @@ pub enum StandardTag {
     Img,
 }
 
+/// Dublin Core Metadata Elements
+#[derive(Debug, PartialEq, Eq)]
+pub enum Dc {
+    Contributor,
+    Coverage,
+    Creator,
+    Date,
+    Description,
+    Format,
+    Identifier,
+    Language,
+    Publisher,
+    Relation,
+    Rights,
+    Source,
+    Subject,
+    Title,
+    Type,
+}
+
+impl FromStr for Dc {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let dc = match s.to_lowercase().as_str() {
+            "contributor" => Dc::Contributor,
+            "coverage" => Dc::Coverage,
+            "creator" => Dc::Creator,
+            "date" => Dc::Date,
+            "description" => Dc::Description,
+            "format" => Dc::Format,
+            "identifier" => Dc::Identifier,
+            "language" => Dc::Language,
+            "publisher" => Dc::Publisher,
+            "relation" => Dc::Relation,
+            "rights" => Dc::Rights,
+            "source" => Dc::Source,
+            "subject" => Dc::Subject,
+            "title" => Dc::Title,
+            "type" => Dc::Type,
+            _ => panic!("Unknown Dublin Core variant: {}", s),
+        };
+        Ok(dc)
+    }
+}
+
 impl FromStr for TagType {
     type Err = winnow::error::ErrMode<winnow::error::ContextError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        dbg!(&s);
         let tag = match s {
             "lawDoc" | "bill" => TagType::Doc(DocTag::from_str(s)?),
-            "meta" => TagType::Meta(MetaTag::from_str(s)?),
+            "meta" | "dc" => TagType::Meta(MetaTag::from_str(s)?),
             "property" | "img" => TagType::Standard(StandardTag::from_str(s)?),
             _ => panic!("Unknown TagType: {:#?}", s),
         };
@@ -124,8 +174,10 @@ impl FromStr for MetaTag {
     type Err = winnow::error::ErrMode<winnow::error::ContextError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        dbg!(&s);
         match s {
             "meta" => Ok(MetaTag::Meta),
+            "dc" => Ok(MetaTag::Dc(Dc::from_str(s)?)),
             _ => panic!("Unkown MetaTag: {:#?}", s),
         }
     }
@@ -160,18 +212,41 @@ fn self_closing_tag<'s>(input: &mut &'s str) -> ModalResult<Vec<(&'s str, &'s st
     ">".value(Vec::new()).parse_next(input)
 }
 
+fn dc(input: &mut &str) -> ModalResult<TagType> {
+    ':'.parse_next(input)?;
+    let s = take_while(0.., AsChar::is_alphanum).parse_next(input)?;
+    Ok(TagType::Meta(MetaTag::Dc(Dc::from_str(s)?)))
+}
+
 fn opening_tag(input: &mut &str) -> ModalResult<TagType> {
     let output = preceded('<', take_while(0.., AsChar::is_alphanum)).parse_next(input)?;
-    TagType::from_str(output)
+    match output {
+        "dc" => dc.parse_next(input),
+        _ => TagType::from_str(output),
+    }
 }
 
 fn closing_tag(input: &mut &str) -> ModalResult<TagType> {
-    let output = delimited("</", take_while(0.., AsChar::is_alphanum), '>').parse_next(input)?;
-    TagType::from_str(output)
+    dbg!(&input);
+    let output = preceded("</", take_while(0.., AsChar::is_alphanum)).parse_next(input)?;
+    dbg!(&output);
+    match output {
+        "dc" => {
+            let tag = dc.parse_next(input);
+            '>'.parse_next(input)?;
+            tag
+        }
+        _ => {
+            '>'.parse_next(input)?;
+            TagType::from_str(output)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use super::*;
 
     #[test]
@@ -256,6 +331,35 @@ mod tests {
 
         assert_eq!(input, "");
         assert_eq!(output, TagType::Standard(StandardTag::Property));
+    }
+
+    #[test]
+    fn test_dc() {
+        let mut input = ":title";
+
+        let output = dc(&mut input).unwrap();
+        dbg!(&output);
+
+        assert_eq!(input, "");
+        assert_eq!(output, TagType::Meta(MetaTag::Dc(Dc::Title)),);
+    }
+
+    #[test]
+    fn test_dc_tag() {
+        let mut input = "<dc:title></dc:title>";
+
+        let output = tag(&mut input).unwrap();
+
+        assert_eq!(input, "");
+        assert_eq!(
+            output,
+            Tag {
+                tag_type: TagType::Meta(MetaTag::Dc(Dc::Title)),
+                attributes: vec![],
+                content: None,
+                children: vec![]
+            }
+        );
     }
 
     #[test]
