@@ -72,6 +72,7 @@ pub enum TagType {
     Appendix(Appendix),
     Other(Other),
     Meta(Meta),
+    Table(Table),
 }
 
 impl FromStr for TagType {
@@ -87,7 +88,9 @@ impl FromStr for TagType {
             | "text" | "heading" | "subheading" | "crossheading" | "instruction" | "action"
             | "notes" | "note" | "appendix" | "signatures" | "signature" | "ref" | "date"
             | "quotedText" | "quotedContent" => TagType::Core(Core::from_str(s)?),
-            "layout" | "header" | "row" | "column" => TagType::Generic(Generic::from_str(s)?),
+            "layout" | "header" | "row" | "column" | "b" | "i" => {
+                TagType::Generic(Generic::from_str(s)?)
+            }
             "bill" | "statute" | "resolution" | "amendment" | "uscDoc" => {
                 TagType::Doc(Doc::from_str(s)?)
             }
@@ -239,6 +242,8 @@ pub enum Generic {
     Header,
     Row,
     Column,
+    B,
+    I,
 }
 
 impl FromStr for Generic {
@@ -250,6 +255,8 @@ impl FromStr for Generic {
             "header" => Generic::Header,
             "row" => Generic::Row,
             "column" => Generic::Column,
+            "b" => Generic::B,
+            "i" => Generic::I,
             _ => panic!("Unknown Generic: {}", s),
         };
         Ok(item)
@@ -557,6 +564,28 @@ impl FromStr for Dc {
             "title" => Dc::Title,
             "type" => Dc::Type,
             _ => panic!("Unknown Dublin Core: {}", s),
+        };
+        Ok(item)
+    }
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum Table {
+    Table,
+    Th,
+    Tr,
+}
+
+impl FromStr for Table {
+    type Err = winnow::error::ErrMode<winnow::error::ContextError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let item = match s {
+            "table" => Table::Table,
+            "th" => Table::Th,
+            "tr" => Table::Tr,
+            _ => panic!("Unkown Meta: {:#?}", s,),
         };
         Ok(item)
     }
