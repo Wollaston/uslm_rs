@@ -26,12 +26,13 @@ mod tests {
     use std::str::FromStr;
 
     use mime::TEXT_CSS;
+    use pretty_assertions::assert_eq;
     use url::Url;
 
     use crate::{
         attributes::{Attribute, Encoding, Version},
         header::{HeaderTag, HeaderTagType},
-        tags::{Core, Dc, Doc, Meta, Property, TagType},
+        tags::{Core, Dc, Doc, Generic, Meta, Primitive, Property, TagType},
     };
 
     use super::*;
@@ -371,13 +372,134 @@ mod tests {
       <level role=&quot;Chapter&quot;>
          <num value=&quot;1&quot;>CHAPTER 1.</num>
          <heading>General Provisions</heading>
-         <content>
-         </content>
+         <content></content>
       </level>
    </main>
 </lawDoc>"#;
 
-        let _output = Uslm::parse(&mut input).unwrap();
+        let output = Uslm::parse(&mut input).unwrap();
         assert_eq!(input, "");
+        assert_eq!(
+            output,
+            Uslm {
+                header: Header {
+                    tags: vec![HeaderTag {
+                        tag_type: HeaderTagType::Xml,
+                        attributes: vec![
+                            Attribute::Version(Version::One),
+                            Attribute::Encoding(Encoding::Utf8)
+                        ],
+                    },]
+                },
+                content: vec![Tag {
+                    tag_type: TagType::Core(Core::LawDoc),
+                    attributes: vec![
+                        Attribute::Xmlns(
+                            Url::from_str("http://xml.house.gov/schemas/uslm/1.0").unwrap()
+                        ),
+                        Attribute::XsiSchemaLocation(
+                            Url::from_str("http://xml.house.gov/schemas/uslm/1.0").unwrap()
+                        ),
+                        Attribute::XmlBase(Url::from_str("http://resolver.mydomain.com").unwrap()),
+                        Attribute::Identifier("/us/usc/t5")
+                    ],
+                    content: None,
+                    children: vec![
+                        Tag {
+                            tag_type: TagType::Core(Core::Meta),
+                            attributes: vec![],
+                            content: None,
+                            children: vec![Tag {
+                                tag_type: TagType::Core(Core::Property),
+                                attributes: vec![Attribute::Name("&quot;docTitle&quot;")],
+                                content: None,
+                                children: vec![]
+                            }]
+                        },
+                        Tag {
+                            tag_type: TagType::Core(Core::Main),
+                            attributes: vec![],
+                            content: None,
+                            children: vec![
+                                Tag {
+                                    tag_type: TagType::Generic(Generic::Layout),
+                                    attributes: vec![],
+                                    content: None,
+                                    children: vec![
+                                        Tag {
+                                            tag_type: TagType::Generic(tags::Generic::Header),
+                                            attributes: vec![],
+                                            content: Some("Table of Contents"),
+                                            children: vec![]
+                                        },
+                                        Tag {
+                                            tag_type: TagType::Core(Core::Toc),
+                                            attributes: vec![],
+                                            content: None,
+                                            children: vec![Tag {
+                                                tag_type: TagType::Core(Core::TocItem),
+                                                attributes: vec![Attribute::Title("Chapter 1")],
+                                                content: None,
+                                                children: vec![
+                                                    Tag {
+                                                        tag_type: TagType::Generic(
+                                                            tags::Generic::Column
+                                                        ),
+                                                        attributes: vec![],
+                                                        content: Some("1."),
+                                                        children: vec![]
+                                                    },
+                                                    Tag {
+                                                        tag_type: TagType::Generic(
+                                                            tags::Generic::Column
+                                                        ),
+                                                        attributes: vec![Attribute::Leaders(".")],
+                                                        content: Some("General Provisions"),
+                                                        children: vec![]
+                                                    },
+                                                    Tag {
+                                                        tag_type: TagType::Generic(
+                                                            tags::Generic::Column
+                                                        ),
+                                                        attributes: vec![],
+                                                        content: Some("101"),
+                                                        children: vec![]
+                                                    },
+                                                ]
+                                            }]
+                                        }
+                                    ]
+                                },
+                                Tag {
+                                    tag_type: TagType::Core(Core::Level),
+                                    attributes: vec![Attribute::Role("&quot;Chapter&quot;")],
+                                    content: None,
+                                    children: vec![
+                                        Tag {
+                                            tag_type: TagType::Core(Core::Num),
+                                            attributes: vec![Attribute::Value("&quot;1&quot;")],
+                                            content: Some("CHAPTER 1."),
+                                            children: vec![]
+                                        },
+                                        Tag {
+                                            tag_type: TagType::Core(Core::Heading),
+                                            attributes: vec![],
+                                            content: Some("General Provisions"),
+                                            children: vec![]
+                                        },
+                                        Tag {
+                                            tag_type: TagType::Primitive(Primitive::Content),
+                                            attributes: vec![],
+                                            content: None,
+                                            children: vec![]
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                    ]
+                },],
+            }
+        )
     }
 }
